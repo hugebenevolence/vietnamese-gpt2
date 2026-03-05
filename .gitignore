@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+vietnamese_gpt2/checkpoint-*/
+*.safetensors
+*.pt
+*.pth
+*.bin
+
+# Logs
+logs/
+*.log
+training_log.txt
+
+# Wandb
+wandb/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
