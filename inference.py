@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
-import unicodedata
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
+from config import (
+    MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE, TOP_K, TOP_P,
+    REPETITION_PENALTY, DO_SAMPLE, NUM_RETURN_SEQUENCES,
+)
+from utils import normalize_text
 
-MODEL_DIR = "./artifacts/checkpoints/scratch_init/final"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-MAX_NEW_TOKENS = 200
-TEMPERATURE = 0.7
-TOP_K = 50
-TOP_P = 0.95
-REPETITION_PENALTY = 1.2
-DO_SAMPLE = True
-NUM_RETURN_SEQUENCES = 1
-
-
-def normalize_text(text: str) -> str:
-    if text is None:
-        return ""
-    return unicodedata.normalize("NFC", text)
 
 
 def load_model_and_tokenizer():
@@ -43,7 +32,7 @@ def generate_text(
     repetition_penalty: float = REPETITION_PENALTY,
     do_sample: bool = DO_SAMPLE,
     num_return_sequences: int = NUM_RETURN_SEQUENCES,
-) -> list:
+) -> list[str]:
     prompt = normalize_text(prompt)
     inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
 
@@ -67,7 +56,7 @@ def generate_text(
 def interactive_mode(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
     print("\nInteractive mode. Type 'quit' to exit, 'config' to change params.\n")
 
-    config = {
+    gen_config = {
         "max_new_tokens": MAX_NEW_TOKENS,
         "temperature": TEMPERATURE,
         "top_k": TOP_K,
@@ -83,16 +72,16 @@ def interactive_mode(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
                 break
 
             if prompt.lower() == "config":
-                for key, value in config.items():
+                for key, value in gen_config.items():
                     new_value = input(f"  {key} [{value}]: ").strip()
                     if new_value:
-                        config[key] = type(value)(new_value)
+                        gen_config[key] = type(value)(new_value)
                 continue
 
             if not prompt:
                 continue
 
-            for text in generate_text(model, tokenizer, prompt, **config):
+            for text in generate_text(model, tokenizer, prompt, **gen_config):
                 print(f"\n{text}\n")
 
         except KeyboardInterrupt:

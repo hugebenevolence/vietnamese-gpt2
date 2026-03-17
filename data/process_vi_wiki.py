@@ -2,14 +2,10 @@
 Post-process vi_wiki_articles.jsonl:
   1. Strip wikitext markup -> plain text
   2. Save to vi_wiki_articles_clean.jsonl
-  3. (Optional) Convert to Parquet format
+  3. Convert cleaned JSONL to Parquet
 
 Usage:
-    # Clean only (save as JSONL):
     python process_vi_wiki.py [--input INPUT] [--output OUTPUT]
-
-    # Clean and convert to Parquet:
-    python process_vi_wiki.py [--input INPUT] [--output OUTPUT] --to-parquet
 """
 
 import argparse
@@ -20,7 +16,11 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from datasets import Dataset
+
+from utils import format_size
 
 logging.basicConfig(
     level=logging.INFO,
@@ -306,14 +306,6 @@ def clean_wikitext(raw: str) -> str:
     return text
 
 
-def format_size(num_bytes: int) -> str:
-    for unit in ["B", "KB", "MB", "GB"]:
-        if num_bytes < 1024.0:
-            return f"{num_bytes:.2f} {unit}"
-        num_bytes /= 1024.0
-    return f"{num_bytes:.2f} TB"
-
-
 def convert_jsonl_to_parquet(input_path: Path, output_parquet: Path) -> None:
     import os
 
@@ -379,6 +371,9 @@ def process(input_path: Path, output_path: Path) -> None:
     logger.info("  Output     : %s", output_path)
 
 
+_DATA_DIR = Path(__file__).resolve().parent
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Clean and filter vi_wiki_articles.jsonl"
@@ -386,13 +381,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=Path,
-        default=Path("raws/vi_wiki_articles.jsonl"),
+        default=_DATA_DIR / "raws" / "vi_wiki_articles.jsonl",
         help="Input JSONL file (raw wikitext)",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("raws/vi_wiki_articles_clean.jsonl"),
+        default=_DATA_DIR / "raws" / "vi_wiki_articles_clean.jsonl",
         help="Output JSONL file (cleaned text)",
     )
     return parser.parse_args()

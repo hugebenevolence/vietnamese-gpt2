@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-import glob
 import os
-import unicodedata
-from typing import Dict, List, Any
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
@@ -19,47 +16,23 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+from transformers.trainer_utils import get_last_checkpoint
 
-BASE_MODEL    = "gpt2"
-TOKENIZER_DIR = "./artifacts/tokenizer"
-OUTPUT_DIR    = "./artifacts/checkpoints/scratch_init"
-
-TOKEN_BUDGET              = 2_480_000_000
-MAX_LENGTH                = 1024
-EVAL_SPLIT_RATIO          = 0.01
-PREPROCESSING_NUM_WORKERS = 4
-DATASET_CONFIGS           = [
-    {
-        "path": "data/train/bkai_train.parquet",
-        "text_col": "text",
-    },
-    {
-        "path": "data/train/vi_wiki_articles_clean.parquet",
-        "text_col": "text",
-    },
-]
-
-LEARNING_RATE               = 5e-4
-WEIGHT_DECAY                = 0.01
-PER_DEVICE_TRAIN_BATCH_SIZE = 2
-PER_DEVICE_EVAL_BATCH_SIZE  = 2
-GRADIENT_ACCUMULATION_STEPS = 64
-WARMUP_RATIO                = 0.1
-BF16                        = True
-GRADIENT_CHECKPOINTING      = True
-DATALOADER_NUM_WORKERS      = 0
-
-WANDB_RUN_NAME = "gpt2-small-vietnamese-rand-init"
+from config import (
+    BASE_MODEL, TOKENIZER_DIR, CHECKPOINT_DIR,
+    TOKEN_BUDGET, MAX_LENGTH, EVAL_SPLIT_RATIO,
+    PREPROCESSING_NUM_WORKERS, DATASET_CONFIGS,
+    LEARNING_RATE, WEIGHT_DECAY,
+    PER_DEVICE_TRAIN_BATCH_SIZE, PER_DEVICE_EVAL_BATCH_SIZE,
+    GRADIENT_ACCUMULATION_STEPS, WARMUP_RATIO, BF16,
+    GRADIENT_CHECKPOINTING, DATALOADER_NUM_WORKERS,
+    WANDB_RUN_NAME,
+)
+from utils import normalize_text
 
 
 def is_main_process() -> bool:
     return int(os.environ.get("LOCAL_RANK", 0)) == 0
-
-
-def normalize_text(text: str) -> str:
-    if text is None:
-        return ""
-    return unicodedata.normalize("NFC", text)
 
 
 def load_and_prepare_tokenizer() -> GPT2TokenizerFast:
@@ -72,24 +45,20 @@ def load_and_prepare_tokenizer() -> GPT2TokenizerFast:
 
 
 def load_and_prepare_model(tokenizer: GPT2TokenizerFast) -> GPT2LMHeadModel:
-    _main = is_main_process()
-
-    # Load GPT-2 Small config only (architecture), then build from scratch
     config = GPT2Config.from_pretrained(BASE_MODEL)
-    config.vocab_size = len(tokenizer)  # Set vocab size upfront — no resize needed
+    config.vocab_size = len(tokenizer)
     config.attn_implementation = "flash_attention_2"
 
     model = GPT2LMHeadModel(config)
-    model = model.to(torch.bfloat16)  # BF16 for Flash Attention 2 compatibility
+    model = model.to(torch.bfloat16)
 
-    # Tie lm_head ↔ wte weights
     config.tie_word_embeddings = True
     model.tie_weights()
 
     if GRADIENT_CHECKPOINTING:
         model.gradient_checkpointing_enable()
 
-    if _main:
+    if is_main_process():
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Model: random init, {total_params/1e6:.1f}M params, flash_attention_2, bf16")
 
@@ -124,7 +93,7 @@ def load_and_prepare_dataset(tokenizer: GPT2TokenizerFast):
 
     eos_token_id = tokenizer.eos_token_id
 
-    def tokenize_function(examples: Dict[str, List[Any]]) -> Dict[str, List[List[int]]]:
+    def tokenize_function(examples: dict[str, list]) -> dict[str, list[list[int]]]:
         normalized_texts = [normalize_text(text) for text in examples["text"]]
         tokenized = tokenizer(
             normalized_texts,
@@ -135,7 +104,7 @@ def load_and_prepare_dataset(tokenizer: GPT2TokenizerFast):
             tokenized["input_ids"][i].append(eos_token_id)
         return tokenized
 
-    def group_texts(examples: Dict[str, List[List[int]]]) -> Dict[str, List[List[int]]]:
+    def group_texts(examples: dict[str, list[list[int]]]) -> dict[str, list[list[int]]]:
         concatenated = {k: sum(examples[k], []) for k in examples.keys()}
         total_length = len(concatenated["input_ids"])
         if total_length >= MAX_LENGTH:
@@ -189,7 +158,7 @@ def create_trainer(
     max_steps = TOKEN_BUDGET // tokens_per_step
 
     training_args = TrainingArguments(
-        output_dir=OUTPUT_DIR,
+        output_dir=CHECKPOINT_DIR,
         max_steps=max_steps,
         per_device_train_batch_size=PER_DEVICE_TRAIN_BATCH_SIZE,
         per_device_eval_batch_size=PER_DEVICE_EVAL_BATCH_SIZE,
@@ -228,7 +197,7 @@ def create_trainer(
     if _main:
         print(f"Training: lr={LEARNING_RATE}, batch={effective_batch_size}, max_steps={max_steps:,} ({TOKEN_BUDGET/1e9:.2f}B tokens)")
 
-    trainer = Trainer(
+    return Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
@@ -236,8 +205,6 @@ def create_trainer(
         data_collator=data_collator,
         processing_class=tokenizer,
     )
-
-    return trainer
 
 
 def main():
@@ -259,20 +226,9 @@ def main():
         eval_dataset=dataset["test"],
     )
 
-    checkpoint_dirs = glob.glob(os.path.join(OUTPUT_DIR, "checkpoint-*"))
     resume_from_checkpoint = None
-
-    if checkpoint_dirs:
-        def get_step(path):
-            try:
-                return int(os.path.basename(path).split('-')[-1])
-            except (ValueError, IndexError):
-                return 0
-        for ckpt in sorted(checkpoint_dirs, key=get_step, reverse=True):
-            model_file = os.path.join(ckpt, 'model.safetensors')
-            if os.path.exists(model_file) and os.path.getsize(model_file) > 1_000_000:
-                resume_from_checkpoint = ckpt
-                break
+    if os.path.isdir(CHECKPOINT_DIR):
+        resume_from_checkpoint = get_last_checkpoint(CHECKPOINT_DIR)
 
     if _main:
         if resume_from_checkpoint:
@@ -282,7 +238,7 @@ def main():
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
-    final_output_dir = os.path.join(OUTPUT_DIR, "final")
+    final_output_dir = os.path.join(CHECKPOINT_DIR, "final")
     trainer.save_model(final_output_dir)
     if trainer.is_world_process_zero():
         tokenizer.save_pretrained(final_output_dir)

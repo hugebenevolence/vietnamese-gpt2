@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from datasets import load_dataset
 
+from utils import format_size
 
 OUTPUT_DIR = Path(__file__).parent / "train"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def format_size(num_bytes: int) -> str:
-    for unit in ["B", "KB", "MB", "GB"]:
-        if num_bytes < 1024.0:
-            return f"{num_bytes:.2f} {unit}"
-        num_bytes /= 1024.0
-    return f"{num_bytes:.2f} TB"
 
 
 def download_and_save_dataset(
@@ -40,7 +36,7 @@ def main():
         name="bkai-foundation-models/BKAINewsCorpus",
         split="train",
         output_filename="bkai_train.parquet",
-        max_rows=2_740_000,  # Limit to 2.74M rows (target_samples from config)
+        max_rows=2_740_000,
     )
 
 

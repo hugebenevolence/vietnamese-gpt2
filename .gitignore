@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.python-version
 
 # Artifacts — checkpoints and logs (large files, generated outputs)
 artifacts/checkpoints/
