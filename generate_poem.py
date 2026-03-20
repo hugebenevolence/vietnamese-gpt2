@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """Generate 5-word quatrains from SFT model."""
 
+import logging
+
 import torch
-from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
 from config import (
     POEM_MODEL_DIR, POEM_PREFIX,
     TEMPERATURE, TOP_K, TOP_P, REPETITION_PENALTY,
 )
+from utils import configure_root_logging, load_gpt2_lm_head
+
+logger = logging.getLogger(__name__)
 
 
 def load_model():
-    tokenizer = GPT2TokenizerFast.from_pretrained(POEM_MODEL_DIR)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    model = GPT2LMHeadModel.from_pretrained(POEM_MODEL_DIR, torch_dtype=torch.bfloat16)
-    model.tie_weights()
-    model.eval()
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-
+    model, tokenizer, device = load_gpt2_lm_head(
+        POEM_MODEL_DIR,
+        dtype=torch.bfloat16,
+        tie_weights=True,
+        pad_token_to_eos=True,
+        eval_mode=True,
+    )
     return tokenizer, model, device
 
 
@@ -52,7 +53,8 @@ def generate(tokenizer, model, device, prompt="", num_samples=2):
     return results
 
 
-def main():
+def main() -> None:
+    configure_root_logging()
     tokenizer, model, device = load_model()
 
     prompts = [
@@ -63,14 +65,13 @@ def main():
     ]
 
     for prompt in prompts:
-        print(f"\n[Prompt: {prompt or '(empty)'}]")
+        logger.info("\n[Prompt: %s]", prompt or "(empty)")
         poems = generate(tokenizer, model, device, prompt)
         for poem in poems:
-            print(poem)
-            print()
+            logger.info("%s", poem)
+            logger.info("")
 
-    # Interactive mode
-    print("Interactive mode (type 'q' to quit)")
+    logger.info("Interactive mode (type 'q' to quit)")
     while True:
         prompt = input("\nFirst line: ").strip()
         if prompt.lower() == "q":
@@ -78,8 +79,8 @@ def main():
 
         poems = generate(tokenizer, model, device, prompt)
         for poem in poems:
-            print(poem)
-            print()
+            logger.info("%s", poem)
+            logger.info("")
 
 
 if __name__ == "__main__":

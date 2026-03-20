@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import logging
+
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
@@ -6,24 +8,25 @@ from config import (
     MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE, TOP_K, TOP_P,
     REPETITION_PENALTY, DO_SAMPLE, NUM_RETURN_SEQUENCES,
 )
-from utils import normalize_text
+from utils import configure_root_logging, load_gpt2_lm_head, normalize_text
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+logger = logging.getLogger(__name__)
 
 
-def load_model_and_tokenizer():
-    print(f"Loading model from: {MODEL_DIR} ({DEVICE})")
-    tokenizer = GPT2TokenizerFast.from_pretrained(MODEL_DIR)
-    model = GPT2LMHeadModel.from_pretrained(MODEL_DIR)
-    model.to(DEVICE)
-    model.eval()
-    print(f"  {sum(p.numel() for p in model.parameters())/1e6:.1f}M params, vocab={len(tokenizer):,}")
-    return model, tokenizer
+def load_model_and_tokenizer() -> tuple[GPT2LMHeadModel, GPT2TokenizerFast, str]:
+    model, tokenizer, device = load_gpt2_lm_head(MODEL_DIR, eval_mode=True)
+    n_params = sum(p.numel() for p in model.parameters()) / 1e6
+    logger.info(
+        "Loaded model from %s (%s) — %.1fM params, vocab=%s",
+        MODEL_DIR, device, n_params, f"{len(tokenizer):,}",
+    )
+    return model, tokenizer, device
 
 
 def generate_text(
     model: GPT2LMHeadModel,
     tokenizer: GPT2TokenizerFast,
+    device: str,
     prompt: str,
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = TEMPERATURE,
@@ -34,7 +37,7 @@ def generate_text(
     num_return_sequences: int = NUM_RETURN_SEQUENCES,
 ) -> list[str]:
     prompt = normalize_text(prompt)
-    inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
     with torch.no_grad():
         outputs = model.generate(
@@ -53,8 +56,12 @@ def generate_text(
     return [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
 
 
-def interactive_mode(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
-    print("\nInteractive mode. Type 'quit' to exit, 'config' to change params.\n")
+def interactive_mode(
+    model: GPT2LMHeadModel,
+    tokenizer: GPT2TokenizerFast,
+    device: str,
+) -> None:
+    logger.info("Interactive mode. Type 'quit' to exit, 'config' to change params.")
 
     gen_config = {
         "max_new_tokens": MAX_NEW_TOKENS,
@@ -81,16 +88,20 @@ def interactive_mode(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
             if not prompt:
                 continue
 
-            for text in generate_text(model, tokenizer, prompt, **gen_config):
-                print(f"\n{text}\n")
+            for text in generate_text(model, tokenizer, device, prompt, **gen_config):
+                logger.info("\n%s\n", text)
 
         except KeyboardInterrupt:
             break
         except Exception as e:
-            print(f"Error: {e}")
+            logger.exception("Generation error: %s", e)
 
 
-def run_test_examples(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
+def run_test_examples(
+    model: GPT2LMHeadModel,
+    tokenizer: GPT2TokenizerFast,
+    device: str,
+) -> None:
     test_prompts = [
         "Việt Nam là một đất nước",
         "Hôm nay thời tiết rất đẹp,",
@@ -100,19 +111,20 @@ def run_test_examples(model: GPT2LMHeadModel, tokenizer: GPT2TokenizerFast):
     ]
 
     for i, prompt in enumerate(test_prompts, 1):
-        print(f"[{i}/{len(test_prompts)}] {prompt}")
-        for text in generate_text(model, tokenizer, prompt):
-            print(text)
-        print()
+        logger.info("[%d/%d] %s", i, len(test_prompts), prompt)
+        for text in generate_text(model, tokenizer, device, prompt):
+            logger.info("%s", text)
+        logger.info("")
 
 
-def main():
-    model, tokenizer = load_model_and_tokenizer()
-    run_test_examples(model, tokenizer)
+def main() -> None:
+    configure_root_logging()
+    model, tokenizer, device = load_model_and_tokenizer()
+    run_test_examples(model, tokenizer, device)
 
     user_input = input("Enter interactive mode? [Y/n]: ").strip().lower()
     if user_input != "n":
-        interactive_mode(model, tokenizer)
+        interactive_mode(model, tokenizer, device)
 
 
 if __name__ == "__main__":

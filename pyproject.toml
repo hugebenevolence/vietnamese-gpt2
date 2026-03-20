@@ -1,7 +1,7 @@
 [project]
 name = "vietnamese-llm-pretraining"
 version = "0.1.0"
-description = "Pre-train a Vietnamese GPT-2 language model from scratch"
+description = "Pre-train a Vietnamese GPT-2 language model from scratch and SFT for poetry"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,15 +10,10 @@ dependencies = [
     "curl-cffi>=0.6.0",
     "datasets>=2.15.0",
     "multiprocess>=0.70.15",
-    "ninja>=1.13.0",
-    "numpy>=2.4.2",
-    "packaging>=26.0",
     "pandas>=2.0.0",
-    "protobuf>=6.33.5",
     "pyyaml>=6.0",
     "requests>=2.28.0",
     "selenium>=4.15.0",
-    "sentencepiece>=0.2.1",
     "tensorboard>=2.15.0",
     "tokenizers>=0.15.0",
     "torch>=2.2",

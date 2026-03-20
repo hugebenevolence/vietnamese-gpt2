@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import os
 from typing import Iterator
 
@@ -10,7 +11,9 @@ from config import (
     DATASET_CONFIGS, VOCAB_SIZE, MIN_FREQUENCY,
     SPECIAL_TOKEN, TOKENIZER_DIR, MAX_LENGTH,
 )
-from utils import normalize_text
+from utils import configure_root_logging, normalize_text
+
+logger = logging.getLogger(__name__)
 
 
 def get_training_corpus(datasets_list, batch_size: int = 1000) -> Iterator[list[str]]:
@@ -21,23 +24,28 @@ def get_training_corpus(datasets_list, batch_size: int = 1000) -> Iterator[list[
 
 
 def train_tokenizer():
+    configure_root_logging()
     all_datasets = []
     for cfg in DATASET_CONFIGS:
         if "path" in cfg:
-            print(f"Loading: {cfg['path']}")
+            logger.info("Loading: %s", cfg["path"])
             ds = load_dataset("parquet", data_files=cfg["path"], split="train")
         else:
-            print(f"Loading: {cfg['name']}")
+            logger.info("Loading: %s", cfg["name"])
             ds = load_dataset(cfg["name"], split=cfg["split"])
 
         if cfg["text_col"] != "text":
             ds = ds.rename_column(cfg["text_col"], "text")
         ds = ds.select_columns(["text"])
-        print(f"  {len(ds):,} samples")
+        logger.info("  %s samples", f"{len(ds):,}")
         all_datasets.append(ds)
 
     tokenizer = ByteLevelBPETokenizer()
-    print(f"\nTraining tokenizer: vocab_size={VOCAB_SIZE:,}, min_freq={MIN_FREQUENCY}")
+    logger.info(
+        "Training tokenizer: vocab_size=%s, min_freq=%s",
+        f"{VOCAB_SIZE:,}",
+        MIN_FREQUENCY,
+    )
     tokenizer.train_from_iterator(
         get_training_corpus(all_datasets),
         vocab_size=VOCAB_SIZE,
@@ -62,9 +70,9 @@ def train_tokenizer():
     test_text = "Xin chào Việt Nam! Đây là bài kiểm tra tokenizer."
     encoded = gpt2_tokenizer.encode(normalize_text(test_text))
     decoded = gpt2_tokenizer.decode(encoded)
-    print(f"\nVocab size: {len(gpt2_tokenizer):,}")
-    print(f"Test: '{test_text}' → {len(encoded)} tokens → '{decoded}'")
-    print(f"Saved to: {TOKENIZER_DIR}")
+    logger.info("Vocab size: %s", f"{len(gpt2_tokenizer):,}")
+    logger.info("Test: %r → %d tokens → %r", test_text, len(encoded), decoded)
+    logger.info("Saved to: %s", TOKENIZER_DIR)
 
     return gpt2_tokenizer
 

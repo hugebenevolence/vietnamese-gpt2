@@ -1,11 +1,11 @@
 # Vietnamese GPT-2 Pre-training
 
-Pre-train GPT-2 from scratch on Vietnamese text data (BKAI News + Wikipedia).
+Pre-train GPT-2 from scratch on Vietnamese text data (BKAI News + Wikipedia), with optional supervised fine-tuning (SFT) for poetry generation.
 
 ## Requirements
 
 - Python >= 3.11
-- CUDA GPU
+- CUDA GPU (recommended for training)
 
 ## Setup
 
@@ -14,28 +14,32 @@ uv sync
 # or: pip install -r requirements.txt
 ```
 
+`requirements.txt` and `pyproject.toml` list the same dependencies for pip and uv.
+
 ## Project Structure
 
 ```
-config.py              # All hyperparameters and paths
-train.py               # Pre-training script (DDP)
-inference.py           # Text generation
-sft_poem.py            # SFT for poem generation
-generate_poem.py       # Generate poems
-tokenizer.py           # Train BPE tokenizer
-data/
-  download_datasets.py # Download BKAI corpus
-  crawl_vi_wiki.py     # Crawl Vietnamese Wikipedia
-  process_vi_wiki.py   # Clean wikitext to plaintext
-  crawl_poem.py        # Crawl poem metadata
-  scrape_poem_content.py # Scrape poem content
-  prepare_poem_data.py # Extract valid stanzas
+config.py                 # Hyperparameters and paths
+train.py                  # Pre-training (DDP-capable)
+inference.py              # Text generation
+sft_poem.py               # SFT for poem generation
+generate_poem.py          # Generate poems from SFT checkpoint
+tokenizer.py              # Train BPE tokenizer
+utils.py                  # Shared helpers (text norm, GPT-2 load helper, logging setup)
+data_prep/
+  news/download_datasets.py    # Download BKAI news corpus → data/train/
+  wiki/crawl_vi_wiki.py        # Crawl Vietnamese Wikipedia → data/raws/
+  wiki/process_vi_wiki.py      # Clean wikitext → data/raws/ + data/train/
+  poem/crawl_poem.py           # Poem metadata (thivien.net)
+  poem/scrape_poem_content.py  # Poem full text
+  poem/prepare_poem_data.py    # JSONL stanzas for SFT
+data/                     # Outputs: raws/, train/, sft/ (see .gitignore)
 scripts/
-  train.sh             # Multi-GPU pre-training
-  train_sft_poem.sh    # SFT poem training
+  train.sh
+  train_sft_poem.sh
 artifacts/
-  tokenizer/           # Trained tokenizer
-  checkpoints/         # Model checkpoints
+  tokenizer/
+  checkpoints/
 ```
 
 ## Pre-training Pipeline
@@ -43,9 +47,9 @@ artifacts/
 ### 1. Prepare Data
 
 ```bash
-python data/download_datasets.py
-python data/crawl_vi_wiki.py 
-python data/process_vi_wiki.py
+python data_prep/news/download_datasets.py
+python data_prep/wiki/crawl_vi_wiki.py
+python data_prep/wiki/process_vi_wiki.py
 ```
 
 ### 2. Train Tokenizer
@@ -75,9 +79,9 @@ python inference.py
 ### 1. Prepare Poem Data
 
 ```bash
-python data/crawl_poem.py
-python data/scrape_poem_content.py
-python data/prepare_poem_data.py
+python data_prep/poem/crawl_poem.py
+python data_prep/poem/scrape_poem_content.py
+python data_prep/poem/prepare_poem_data.py
 ```
 
 ### 2. Train SFT
@@ -94,4 +98,4 @@ python generate_poem.py
 
 ## Configuration
 
-All settings in `config.py`. Training auto-resumes from latest checkpoint.
+All settings live in `config.py`. Pre-training resumes from the latest checkpoint under `CHECKPOINT_DIR`.

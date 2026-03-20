@@ -3,19 +3,29 @@
 
 import html
 import json
+import logging
 import os
 import re
 import sys
+from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
 
 from config import (
     POEM_RAW_CSV, POEM_DATA_PATH,
     POEM_LINES_PER_STANZA, POEM_WORDS_PER_LINE,
 )
 from utils import normalize_text
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 _TRAILING_PUNCT = re.compile(r'[\"\u201c\u201d\u2018\u2019":;,\-–—]+$')
 _LEADING_PUNCT = re.compile(r'^[\"\u201c\u201d\u2018\u2019]+')
@@ -92,7 +102,7 @@ def extract_valid_stanzas(content: str) -> list[str]:
     return valid
 
 
-def main():
+def main() -> None:
     df = pd.read_csv(POEM_RAW_CSV, encoding="utf-8-sig")
     df = clean_dataframe(df)
 
@@ -112,7 +122,7 @@ def main():
             json.dump({"text": stanza}, f, ensure_ascii=False)
             f.write("\n")
 
-    print(f"Saved {len(unique_stanzas)} stanzas to {POEM_DATA_PATH}")
+    logger.info("Saved %d stanzas to %s", len(unique_stanzas), POEM_DATA_PATH)
 
 
 if __name__ == "__main__":

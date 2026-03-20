@@ -3,7 +3,7 @@ Vietnamese Wikipedia Crawler using MediaWiki Action API
 Endpoint: https://vi.wikipedia.org/w/api.php
 
 Usage:
-    python crawl_vi_wiki.py [--output OUTPUT_DIR] [--limit MAX_ARTICLES]
+    python data_prep/wiki/crawl_vi_wiki.py [--output OUTPUT_DIR] [--limit MAX_ARTICLES]
                             [--delay DELAY_SECS] [--resume]
 
 API Docs:
@@ -327,7 +327,7 @@ def parse_args() -> argparse.Namespace:
         "--output",
         type=Path,
         default=Path("data/raws"),
-        help="Directory to save output JSONL and checkpoint (default: ./data/raws)",
+        help="Directory to save output JSONL and checkpoint (default: data/raws from cwd)",
     )
     parser.add_argument(
         "--limit",

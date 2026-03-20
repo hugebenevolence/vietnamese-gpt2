@@ -14,12 +14,15 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests
 from tqdm import tqdm
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_DATA_RAW = REPO_ROOT / "data" / "raws"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("scrape_poem_content.log", encoding="utf-8"),
+        logging.FileHandler(REPO_ROOT / "scrape_poem_content.log", encoding="utf-8"),
     ],
 )
 log = logging.getLogger(__name__)
@@ -58,17 +61,17 @@ def fetch_html(url: str) -> str | None:
             resp.raise_for_status()
 
             if is_blocked(resp.text):
-                log.error(f"[BLOCKED] {url}")
+                log.error("[BLOCKED] %s", url)
                 return None
 
             return resp.text
 
         except Exception as e:
             wait = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            log.warning(f"[Retry {attempt}/{RETRY_MAX}] {url} -> {e}. Wait {wait:.0f}s...")
+            log.warning("[Retry %d/%d] %s -> %s. Wait %.0fs...", attempt, RETRY_MAX, url, e, wait)
             time.sleep(wait)
 
-    log.error(f"[FAIL] Could not fetch after {RETRY_MAX} attempts: {url}")
+    log.error("[FAIL] Could not fetch after %d attempts: %s", RETRY_MAX, url)
     return None
 
 
@@ -101,7 +104,7 @@ def login(username: str, password: str) -> bool:
         return False
 
     except Exception as e:
-        log.error(f"Login error: {e}")
+        log.error("Login error: %s", e)
         return False
 
 
@@ -133,7 +136,7 @@ def scrape_poem(url: str, default_title: str = "") -> list:
     soup = BeautifulSoup(html, "html.parser")
     content_div = soup.select_one("div.poem-content")
     if not content_div:
-        log.warning(f"[WARN] No div.poem-content found: {url}")
+        log.warning("[WARN] No div.poem-content found: %s", url)
         return []
 
     inner_html = str(content_div)
@@ -158,20 +161,20 @@ def run(metadata_file: str, output_file: str, resume: bool = True) -> None:
         return
 
     if not os.path.exists(metadata_file):
-        log.error(f"Metadata file not found: {metadata_file}")
+        log.error("Metadata file not found: %s", metadata_file)
         return
 
     df_meta = pd.read_csv(metadata_file, encoding="utf-8-sig")
-    log.info(f"Loaded {len(df_meta)} poems from {metadata_file}")
+    log.info("Loaded %d poems from %s", len(df_meta), metadata_file)
 
     scraped_urls: set = set()
     if resume and os.path.exists(output_file):
         df_done = pd.read_csv(output_file, encoding="utf-8-sig")
         scraped_urls = set(df_done["url"].dropna().unique())
-        log.info(f"Resume: skipping {len(scraped_urls)} already scraped")
+        log.info("Resume: skipping %d already scraped", len(scraped_urls))
 
     df_todo = df_meta[~df_meta["url"].isin(scraped_urls)].copy()
-    log.info(f"Remaining: {len(df_todo)} poems")
+    log.info("Remaining: %d poems", len(df_todo))
 
     if df_todo.empty:
         log.info("All poems already scraped!")
@@ -204,24 +207,32 @@ def run(metadata_file: str, output_file: str, resume: bool = True) -> None:
 
         if len(batch) >= CHECKPOINT_EVERY:
             append_to_csv(batch, output_file)
-            log.info(f"[CHECKPOINT] Saved {len(batch)} poems")
+            log.info("[CHECKPOINT] Saved %d poems", len(batch))
             batch = []
 
     if batch:
         append_to_csv(batch, output_file)
 
-    log.info(f"Done! Output: {output_file}")
+    log.info("Done! Output: %s", output_file)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metadata", default="raws/poem_metadata.csv")
-    parser.add_argument("--output", default="raws/poem_dataset.csv")
+    parser.add_argument(
+        "--metadata",
+        type=Path,
+        default=_DATA_RAW / "poem_metadata.csv",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=_DATA_RAW / "poem_dataset.csv",
+    )
     parser.add_argument("--no-resume", action="store_true")
     args = parser.parse_args()
 
     run(
-        metadata_file=args.metadata,
-        output_file=args.output,
+        metadata_file=str(args.metadata),
+        output_file=str(args.output),
         resume=not args.no_resume,
     )

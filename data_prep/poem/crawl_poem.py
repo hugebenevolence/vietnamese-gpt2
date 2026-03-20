@@ -8,6 +8,7 @@ import re
 import sys
 import time
 import urllib.parse
+from pathlib import Path
 
 import pandas as pd
 from selenium import webdriver
@@ -17,12 +18,14 @@ from selenium.webdriver.common.by import By
 from tqdm import tqdm
 from webdriver_manager.chrome import ChromeDriverManager
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("crawl_poem.log", encoding="utf-8"),
+        logging.FileHandler(REPO_ROOT / "crawl_poem.log", encoding="utf-8"),
     ],
 )
 log = logging.getLogger(__name__)
@@ -45,7 +48,7 @@ RETRY_MAX = 3
 RETRY_BASE_DELAY = 5.0
 SLEEP_MIN = 2.0
 SLEEP_MAX = 4.0
-OUTPUT_DIR = "raws"
+OUTPUT_DIR = REPO_ROOT / "data" / "raws"
 
 
 def init_driver() -> webdriver.Chrome:
@@ -53,7 +56,7 @@ def init_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("window-size=1920x1080")
+    chrome_options.add_argument("window-size=1920,1080")
     chrome_options.add_argument(
         "user-agent=Mozilla/5.0 (X11; Linux x86_64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -95,9 +98,9 @@ def safe_get(driver: webdriver.Chrome, url: str) -> bool:
             return True
         except WebDriverException as e:
             wait_time = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            log.warning(f"[Retry {attempt}/{RETRY_MAX}] {url} -> {e}. Wait {wait_time:.0f}s...")
+            log.warning("[Retry %d/%d] %s -> %s. Wait %.0fs...", attempt, RETRY_MAX, url, e, wait_time)
             time.sleep(wait_time)
-    log.error(f"[FAIL] Could not access after {RETRY_MAX} attempts: {url}")
+    log.error("[FAIL] Could not access after %d attempts: %s", RETRY_MAX, url)
     return False
 
 
@@ -155,7 +158,7 @@ def extract_author_for_poem_links(driver: webdriver.Chrome) -> list:
             except Exception:
                 continue
     except Exception as e:
-        log.warning(f"[WARN] extract_author_for_poem_links: {e}")
+        log.warning("[WARN] extract_author_for_poem_links: %s", e)
     return results
 
 
@@ -174,7 +177,7 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
         sort = cfg["sort"]
         order = cfg["order"]
         label = f"Sort={sort or 'default'}/Order={order or 'default'}"
-        log.info(f"\n[{label}]")
+        log.info("\n[%s]", label)
 
         first_url = build_search_url(sort, order, 1)
         total_pages = 1
@@ -182,7 +185,7 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
             total_pages = get_total_pages(driver, context=label)
 
         pages_to_crawl = min(total_pages, MAX_PAGES_PER_CONFIG)
-        log.info(f"  Total pages: {total_pages} | Will crawl: {pages_to_crawl}")
+        log.info("  Total pages: %d | Will crawl: %d", total_pages, pages_to_crawl)
 
         for page in range(1, pages_to_crawl + 1):
             if page > 1:
@@ -190,7 +193,7 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                 if not safe_get(driver, url):
                     continue
                 if is_blocked(driver):
-                    log.warning(f"  Page {page}: blocked")
+                    log.warning("  Page %d: blocked", page)
                     break
 
             page_items = extract_author_for_poem_links(driver)
@@ -208,9 +211,9 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                     metadata_list.append(item)
                     new_count += 1
 
-            log.info(f"  Page {page}/{pages_to_crawl}: +{new_count} new | Total: {len(metadata_list)}")
+            log.info("  Page %d/%d: +%d new | Total: %d", page, pages_to_crawl, new_count, len(metadata_list))
 
-    log.info(f"\nAfter Step 1: {len(metadata_list)} poems, {len(all_authors)} authors")
+    log.info("\nAfter Step 1: %d poems, %d authors", len(metadata_list), len(all_authors))
 
     # Step 2: Crawl by author
     log.info("\n" + "=" * 70)
@@ -246,20 +249,20 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                     item["author"] = author_name
                     metadata_list.append(item)
 
-    log.info(f"\nTotal metadata: {len(metadata_list)} poems")
+    log.info("\nTotal metadata: %d poems", len(metadata_list))
     return metadata_list
 
 
-def run_phase_1(driver: webdriver.Chrome, output_file: str = None):
+def run_phase_1(driver: webdriver.Chrome, output_file: str | None = None):
     """Collect metadata and save to CSV."""
     if output_file is None:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        output_file = os.path.join(OUTPUT_DIR, "poem_metadata.csv")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        output_file = str(OUTPUT_DIR / "poem_metadata.csv")
 
     metadata_list = collect_metadata_by_authors(driver)
     df = pd.DataFrame(metadata_list)
     df.to_csv(output_file, index=False, encoding="utf-8-sig")
-    log.info(f"\nDone! Saved {len(metadata_list)} poems to {output_file}")
+    log.info("\nDone! Saved %d poems to %s", len(metadata_list), output_file)
 
 
 if __name__ == "__main__":

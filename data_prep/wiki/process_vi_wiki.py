@@ -5,7 +5,7 @@ Post-process vi_wiki_articles.jsonl:
   3. Convert cleaned JSONL to Parquet
 
 Usage:
-    python process_vi_wiki.py [--input INPUT] [--output OUTPUT]
+    python data_prep/wiki/process_vi_wiki.py [--input INPUT] [--output OUTPUT]
 """
 
 import argparse
@@ -16,7 +16,8 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
 
 from datasets import Dataset
 
@@ -28,6 +29,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+_DATA_RAW = REPO_ROOT / "data" / "raws"
 
 # Patterns applied in order
 _PATTERNS = [
@@ -371,9 +374,6 @@ def process(input_path: Path, output_path: Path) -> None:
     logger.info("  Output     : %s", output_path)
 
 
-_DATA_DIR = Path(__file__).resolve().parent
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Clean and filter vi_wiki_articles.jsonl"
@@ -381,13 +381,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=Path,
-        default=_DATA_DIR / "raws" / "vi_wiki_articles.jsonl",
+        default=_DATA_RAW / "vi_wiki_articles.jsonl",
         help="Input JSONL file (raw wikitext)",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=_DATA_DIR / "raws" / "vi_wiki_articles_clean.jsonl",
+        default=_DATA_RAW / "vi_wiki_articles_clean.jsonl",
         help="Output JSONL file (cleaned text)",
     )
     return parser.parse_args()
@@ -405,7 +405,7 @@ if __name__ == "__main__":
     # Step 2: Convert to Parquet -> data/train/
     logger.info("")
     logger.info("=" * 60)
-    train_dir = Path(__file__).parent / "train"
+    train_dir = REPO_ROOT / "data" / "train"
     train_dir.mkdir(parents=True, exist_ok=True)
     output_parquet = train_dir / args.output.with_suffix(".parquet").name
     convert_jsonl_to_parquet(args.output, output_parquet)

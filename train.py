@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import os
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -28,7 +29,9 @@ from config import (
     GRADIENT_CHECKPOINTING, DATALOADER_NUM_WORKERS,
     WANDB_RUN_NAME,
 )
-from utils import normalize_text
+from utils import configure_root_logging, normalize_text
+
+logger = logging.getLogger(__name__)
 
 
 def is_main_process() -> bool:
@@ -40,7 +43,7 @@ def load_and_prepare_tokenizer() -> GPT2TokenizerFast:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     if is_main_process():
-        print(f"Tokenizer: {TOKENIZER_DIR} (vocab_size={len(tokenizer):,})")
+        logger.info("Tokenizer: %s (vocab_size=%s)", TOKENIZER_DIR, f"{len(tokenizer):,}")
     return tokenizer
 
 
@@ -60,7 +63,10 @@ def load_and_prepare_model(tokenizer: GPT2TokenizerFast) -> GPT2LMHeadModel:
 
     if is_main_process():
         total_params = sum(p.numel() for p in model.parameters())
-        print(f"Model: random init, {total_params/1e6:.1f}M params, flash_attention_2, bf16")
+        logger.info(
+            "Model: random init, %.1fM params, flash_attention_2, bf16",
+            total_params / 1e6,
+        )
 
     return model
 
@@ -86,7 +92,7 @@ def load_and_prepare_dataset(tokenizer: GPT2TokenizerFast):
 
         ds = ds.shuffle(seed=42)
         if _main:
-            print(f"  {src}: {len(ds):,} samples")
+            logger.info("  %s: %s samples", src, f"{len(ds):,}")
         all_datasets.append(ds)
 
     dataset = concatenate_datasets(all_datasets).shuffle(seed=42)
@@ -135,7 +141,12 @@ def load_and_prepare_dataset(tokenizer: GPT2TokenizerFast):
 
     if _main:
         total_tokens = len(grouped_dataset) * MAX_LENGTH
-        print(f"Dataset: {len(split_dataset['train']):,} train / {len(split_dataset['test']):,} eval blocks ({total_tokens/1e9:.2f}B tokens)")
+        logger.info(
+            "Dataset: %s train / %s eval blocks (%.2fB tokens)",
+            f"{len(split_dataset['train']):,}",
+            f"{len(split_dataset['test']):,}",
+            total_tokens / 1e9,
+        )
 
     return split_dataset
 
@@ -195,7 +206,13 @@ def create_trainer(
     )
 
     if _main:
-        print(f"Training: lr={LEARNING_RATE}, batch={effective_batch_size}, max_steps={max_steps:,} ({TOKEN_BUDGET/1e9:.2f}B tokens)")
+        logger.info(
+            "Training: lr=%s, batch=%s, max_steps=%s (%.2fB tokens)",
+            LEARNING_RATE,
+            effective_batch_size,
+            f"{max_steps:,}",
+            TOKEN_BUDGET / 1e9,
+        )
 
     return Trainer(
         model=model,
@@ -208,13 +225,15 @@ def create_trainer(
 
 
 def main():
+    configure_root_logging()
     _main = is_main_process()
 
     if _main:
         if torch.cuda.is_available():
-            print(f"GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB)")
+            mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            logger.info("GPU: %s (%.1f GB)", torch.cuda.get_device_name(0), mem_gb)
         else:
-            print("WARNING: No GPU detected. Training will be slow.")
+            logger.warning("No GPU detected. Training will be slow.")
 
     tokenizer = load_and_prepare_tokenizer()
     model = load_and_prepare_model(tokenizer)
@@ -232,9 +251,9 @@ def main():
 
     if _main:
         if resume_from_checkpoint:
-            print(f"Resuming from: {resume_from_checkpoint}")
+            logger.info("Resuming from: %s", resume_from_checkpoint)
         else:
-            print("Starting fresh training...")
+            logger.info("Starting fresh training...")
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
@@ -246,8 +265,9 @@ def main():
     eval_results = trainer.evaluate()
     if _main:
         loss = eval_results['eval_loss']
-        print(f"Done. Eval loss={loss:.4f}, perplexity={torch.exp(torch.tensor(loss)):.2f}")
-        print(f"Model saved to: {final_output_dir}")
+        ppl = torch.exp(torch.tensor(loss)).item()
+        logger.info("Done. Eval loss=%.4f, perplexity=%.2f", loss, ppl)
+        logger.info("Model saved to: %s", final_output_dir)
 
 
 if __name__ == "__main__":

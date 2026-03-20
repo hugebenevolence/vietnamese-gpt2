@@ -1,48 +1,49 @@
 #!/usr/bin/env python3
 """SFT GPT-2 for 5-word quatrain generation (4 lines x 5 words)."""
 
+import logging
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ.setdefault("WANDB_PROJECT", "vietnamese-gpt2")
 
 import torch
 from datasets import load_dataset
-from transformers import (
-    GPT2LMHeadModel,
-    GPT2TokenizerFast,
-    Trainer,
-    TrainingArguments,
-)
+from transformers import Trainer, TrainingArguments
+
 from config import (
     MODEL_DIR, BF16, WARMUP_RATIO,
     POEM_DATA_PATH, POEM_CHECKPOINT_DIR, POEM_PREFIX,
     POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
     POEM_WEIGHT_DECAY, POEM_MAX_LENGTH,
 )
-from utils import normalize_text
+from utils import configure_root_logging, load_gpt2_lm_head, normalize_text
+
+logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
+    configure_root_logging()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Device: {device}")
+    logger.info("Device: %s", device)
 
-    print(f"Loading model from {MODEL_DIR}")
-    tokenizer = GPT2TokenizerFast.from_pretrained(MODEL_DIR)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    model = GPT2LMHeadModel.from_pretrained(
+    dtype = torch.bfloat16 if BF16 else torch.float32
+    model, tokenizer, _ = load_gpt2_lm_head(
         MODEL_DIR,
-        torch_dtype=torch.bfloat16 if BF16 else torch.float32,
+        dtype=dtype,
+        tie_weights=True,
+        pad_token_to_eos=True,
+        eval_mode=False,
     )
-    model.tie_weights()
-    model.config.pad_token_id = tokenizer.pad_token_id
+    logger.info(
+        "Loaded base model from %s — %.1fM params",
+        MODEL_DIR,
+        sum(p.numel() for p in model.parameters()) / 1e6,
+    )
 
-    print(f"  Params: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M")
-
-    print(f"Loading data from {POEM_DATA_PATH}")
+    logger.info("Loading data from %s", POEM_DATA_PATH)
     ds = load_dataset("json", data_files=POEM_DATA_PATH, split="train")
-    print(f"  Samples: {len(ds)}")
+    logger.info("Samples: %s", f"{len(ds):,}")
 
     eos = tokenizer.eos_token
     prefix_len = len(tokenizer(POEM_PREFIX, add_special_tokens=False)["input_ids"])
@@ -61,7 +62,7 @@ def main():
 
     ds = ds.map(tokenize, batched=True, remove_columns=ds.column_names)
     ds = ds.train_test_split(test_size=0.1, seed=42)
-    print(f"  Train: {len(ds['train'])} | Eval: {len(ds['test'])}")
+    logger.info("Train: %d | Eval: %d", len(ds["train"]), len(ds["test"]))
 
     args = TrainingArguments(
         output_dir=POEM_CHECKPOINT_DIR,
@@ -91,7 +92,10 @@ def main():
         eval_dataset=ds["test"],
     )
 
-    print(f"\nTraining: epochs={POEM_EPOCHS}, batch={POEM_BATCH_SIZE}, lr={POEM_LEARNING_RATE}")
+    logger.info(
+        "Training: epochs=%s, batch=%s, lr=%s",
+        POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
+    )
     trainer.train()
 
     final_dir = os.path.join(POEM_CHECKPOINT_DIR, "final")
@@ -101,8 +105,8 @@ def main():
     result = trainer.evaluate()
     loss = result["eval_loss"]
     ppl = torch.exp(torch.tensor(loss)).item()
-    print(f"\nDone. Loss={loss:.4f}, PPL={ppl:.1f}")
-    print(f"Saved to {final_dir}")
+    logger.info("Done. Loss=%.4f, PPL=%.1f", loss, ppl)
+    logger.info("Saved to %s", final_dir)
 
 
 if __name__ == "__main__":
