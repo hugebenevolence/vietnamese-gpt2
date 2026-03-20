@@ -40,7 +40,7 @@ def configure_root_logging(level: int = logging.INFO) -> None:
 def load_gpt2_lm_head(
     model_dir: str | Path,
     *,
-    dtype: torch.dtype | None = None,
+    torch_dtype: torch.dtype | None = None,
     tie_weights: bool = False,
     pad_token_to_eos: bool = False,
     eval_mode: bool | None = True,
@@ -55,8 +55,8 @@ def load_gpt2_lm_head(
         tokenizer.pad_token = tokenizer.eos_token
 
     load_kw: dict = {}
-    if dtype is not None:
-        load_kw["dtype"] = dtype
+    if torch_dtype is not None:
+        load_kw["torch_dtype"] = torch_dtype
     model = GPT2LMHeadModel.from_pretrained(model_dir, **load_kw)
     if tie_weights:
         model.tie_weights()
@@ -71,3 +71,38 @@ def load_gpt2_lm_head(
         model.train()
 
     return model, tokenizer, device
+
+
+def gpt2_generate_texts(
+    model: GPT2LMHeadModel,
+    tokenizer: GPT2TokenizerFast,
+    device: str,
+    prompt: str,
+    *,
+    max_new_tokens: int,
+    temperature: float,
+    top_k: int,
+    top_p: float,
+    repetition_penalty: float,
+    do_sample: bool,
+    num_return_sequences: int,
+) -> list[str]:
+    """Run `model.generate` and return decoded strings (NFC-normalized prompt)."""
+    prompt = normalize_text(prompt)
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            do_sample=do_sample,
+            num_return_sequences=num_return_sequences,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+    return [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]

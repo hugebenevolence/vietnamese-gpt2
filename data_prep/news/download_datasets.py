@@ -3,15 +3,12 @@
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT))
 
 from datasets import load_dataset
-
-from utils import format_size
+from src.utils import format_size
 
 logging.basicConfig(
     level=logging.INFO,

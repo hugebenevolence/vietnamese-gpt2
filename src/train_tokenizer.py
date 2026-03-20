@@ -7,11 +7,11 @@ from datasets import load_dataset
 from tokenizers import ByteLevelBPETokenizer
 from transformers import GPT2TokenizerFast
 
-from config import (
+from src.config import (
     DATASET_CONFIGS, VOCAB_SIZE, MIN_FREQUENCY,
     SPECIAL_TOKEN, TOKENIZER_DIR, MAX_LENGTH,
 )
-from utils import configure_root_logging, normalize_text
+from src.utils import configure_root_logging, normalize_text
 
 logger = logging.getLogger(__name__)
 

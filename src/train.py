@@ -2,11 +2,6 @@
 import logging
 import os
 
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
-if 'WANDB_PROJECT' not in os.environ:
-    os.environ['WANDB_PROJECT'] = 'vietnamese-gpt2'
-
 import torch
 from datasets import load_dataset, concatenate_datasets
 from transformers import (
@@ -19,7 +14,7 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 
-from config import (
+from src.config import (
     BASE_MODEL, TOKENIZER_DIR, CHECKPOINT_DIR,
     TOKEN_BUDGET, MAX_LENGTH, EVAL_SPLIT_RATIO,
     PREPROCESSING_NUM_WORKERS, DATASET_CONFIGS,
@@ -29,7 +24,7 @@ from config import (
     GRADIENT_CHECKPOINTING, DATALOADER_NUM_WORKERS,
     WANDB_RUN_NAME,
 )
-from utils import configure_root_logging, normalize_text
+from src.utils import configure_root_logging, normalize_text
 
 logger = logging.getLogger(__name__)
 

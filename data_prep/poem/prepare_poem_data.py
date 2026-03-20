@@ -6,19 +6,14 @@ import json
 import logging
 import os
 import re
-import sys
-from pathlib import Path
 
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT))
-
-from config import (
+from src.config import (
     POEM_RAW_CSV, POEM_DATA_PATH,
     POEM_LINES_PER_STANZA, POEM_WORDS_PER_LINE,
 )
-from utils import normalize_text
+from src.utils import normalize_text
 
 logging.basicConfig(
     level=logging.INFO,

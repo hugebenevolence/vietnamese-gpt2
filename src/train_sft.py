@@ -4,20 +4,17 @@
 import logging
 import os
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ.setdefault("WANDB_PROJECT", "vietnamese-gpt2")
-
 import torch
 from datasets import load_dataset
 from transformers import Trainer, TrainingArguments
 
-from config import (
+from src.config import (
     MODEL_DIR, BF16, WARMUP_RATIO,
     POEM_DATA_PATH, POEM_CHECKPOINT_DIR, POEM_PREFIX,
     POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
     POEM_WEIGHT_DECAY, POEM_MAX_LENGTH,
 )
-from utils import configure_root_logging, load_gpt2_lm_head, normalize_text
+from src.utils import configure_root_logging, load_gpt2_lm_head, normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +27,7 @@ def main() -> None:
     dtype = torch.bfloat16 if BF16 else torch.float32
     model, tokenizer, _ = load_gpt2_lm_head(
         MODEL_DIR,
-        dtype=dtype,
+        torch_dtype=dtype,
         tie_weights=True,
         pad_token_to_eos=True,
         eval_mode=False,

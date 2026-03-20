@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 import logging
 
-import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
-from config import (
+from src.config import (
     MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE, TOP_K, TOP_P,
     REPETITION_PENALTY, DO_SAMPLE, NUM_RETURN_SEQUENCES,
 )
-from utils import configure_root_logging, load_gpt2_lm_head, normalize_text
+from src.utils import (
+    configure_root_logging,
+    gpt2_generate_texts,
+    load_gpt2_lm_head,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,24 +39,19 @@ def generate_text(
     do_sample: bool = DO_SAMPLE,
     num_return_sequences: int = NUM_RETURN_SEQUENCES,
 ) -> list[str]:
-    prompt = normalize_text(prompt)
-    inputs = tokenizer(prompt, return_tensors="pt").to(device)
-
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            repetition_penalty=repetition_penalty,
-            do_sample=do_sample,
-            num_return_sequences=num_return_sequences,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-        )
-
-    return [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+    return gpt2_generate_texts(
+        model,
+        tokenizer,
+        device,
+        prompt,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        repetition_penalty=repetition_penalty,
+        do_sample=do_sample,
+        num_return_sequences=num_return_sequences,
+    )
 
 
 def interactive_mode(
