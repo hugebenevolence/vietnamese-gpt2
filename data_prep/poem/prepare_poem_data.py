@@ -69,7 +69,6 @@ def clean_line(line: str) -> str:
     line = _LEADING_PUNCT.sub("", line).strip()
     line = _TRAILING_PUNCT.sub("", line).strip()
     line = normalize_text(line)
-    line = re.sub(r"^Me\b", "Mẹ", line)
     return line
 
 

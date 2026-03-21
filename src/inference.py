@@ -26,33 +26,6 @@ def load_model_and_tokenizer() -> tuple[GPT2LMHeadModel, GPT2TokenizerFast, str]
     return model, tokenizer, device
 
 
-def generate_text(
-    model: GPT2LMHeadModel,
-    tokenizer: GPT2TokenizerFast,
-    device: str,
-    prompt: str,
-    max_new_tokens: int = MAX_NEW_TOKENS,
-    temperature: float = TEMPERATURE,
-    top_k: int = TOP_K,
-    top_p: float = TOP_P,
-    repetition_penalty: float = REPETITION_PENALTY,
-    do_sample: bool = DO_SAMPLE,
-    num_return_sequences: int = NUM_RETURN_SEQUENCES,
-) -> list[str]:
-    return gpt2_generate_texts(
-        model,
-        tokenizer,
-        device,
-        prompt,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        repetition_penalty=repetition_penalty,
-        do_sample=do_sample,
-        num_return_sequences=num_return_sequences,
-    )
-
 
 def interactive_mode(
     model: GPT2LMHeadModel,
@@ -86,7 +59,7 @@ def interactive_mode(
             if not prompt:
                 continue
 
-            for text in generate_text(model, tokenizer, device, prompt, **gen_config):
+            for text in gpt2_generate_texts(model, tokenizer, device, prompt, **gen_config):
                 logger.info("\n%s\n", text)
 
         except KeyboardInterrupt:
@@ -110,7 +83,7 @@ def run_test_examples(
 
     for i, prompt in enumerate(test_prompts, 1):
         logger.info("[%d/%d] %s", i, len(test_prompts), prompt)
-        for text in generate_text(model, tokenizer, device, prompt):
+        for text in gpt2_generate_texts(model, tokenizer, device, prompt):
             logger.info("%s", text)
         logger.info("")
 

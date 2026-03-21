@@ -174,7 +174,7 @@ def create_trainer(
         warmup_ratio=WARMUP_RATIO,
         lr_scheduler_type="cosine",
         fp16=False,
-        bf16=BF16 and torch.cuda.is_available(),
+        bf16=BF16,
         eval_strategy="steps",
         eval_steps=500,
         save_strategy="steps",
