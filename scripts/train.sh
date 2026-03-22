@@ -1,7 +1,5 @@
 #!/bin/bash
-# ==============================================
 # Vietnamese GPT-2 Training Script (2 GPUs, DDP)
-# ==============================================
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -17,17 +15,13 @@ export TOKENIZERS_PARALLELISM=false
 export WANDB_PROJECT="vietnamese-gpt2"
 export WANDB_MODE="online"
 
-uv run python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
-
 mkdir -p artifacts/logs
 
 echo "=========================================="
 echo "Vietnamese GPT-2 Pre-training (Random Init)"
-echo "=========================================="
 echo "GPU: $CUDA_VISIBLE_DEVICES (${NUM_GPUS} GPUs)"
-echo ""
+echo "=========================================="
 
 uv run torchrun --nproc_per_node=$NUM_GPUS src/train.py 2>&1 | tee artifacts/logs/training_log.txt
 
-echo ""
 echo "Training completed!"

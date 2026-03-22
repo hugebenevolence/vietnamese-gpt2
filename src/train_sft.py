@@ -14,7 +14,7 @@ from src.config import (
     POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
     POEM_WEIGHT_DECAY, POEM_MAX_LENGTH,
 )
-from src.utils import configure_root_logging, load_gpt2_lm_head, normalize_text
+from src.utils import configure_root_logging, load_gpt2, normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def main() -> None:
     logger.info("Device: %s", device)
 
     dtype = torch.bfloat16 if BF16 else torch.float32
-    model, tokenizer, _ = load_gpt2_lm_head(
+    model, tokenizer, _ = load_gpt2(
         MODEL_DIR,
         torch_dtype=dtype,
         tie_weights=True,

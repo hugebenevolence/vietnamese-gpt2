@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 import logging
 import os
-from typing import Iterator
 
 from datasets import load_dataset
 from tokenizers import ByteLevelBPETokenizer
 from transformers import GPT2TokenizerFast
 
 from src.config import (
-    DATASET_CONFIGS, VOCAB_SIZE, MIN_FREQUENCY,
+    RAW_DATASETS, VOCAB_SIZE, MIN_FREQUENCY,
     SPECIAL_TOKEN, TOKENIZER_DIR, MAX_LENGTH,
 )
 from src.utils import configure_root_logging, normalize_text
@@ -16,7 +15,7 @@ from src.utils import configure_root_logging, normalize_text
 logger = logging.getLogger(__name__)
 
 
-def get_training_corpus(datasets_list, batch_size: int = 1000) -> Iterator[list[str]]:
+def get_training_corpus(datasets_list, batch_size=10000):
     for dataset in datasets_list:
         for i in range(0, len(dataset), batch_size):
             batch = dataset[i : i + batch_size]
@@ -25,17 +24,11 @@ def get_training_corpus(datasets_list, batch_size: int = 1000) -> Iterator[list[
 
 def train_tokenizer():
     configure_root_logging()
-    all_datasets = []
-    for cfg in DATASET_CONFIGS:
-        if "path" in cfg:
-            logger.info("Loading: %s", cfg["path"])
-            ds = load_dataset("parquet", data_files=cfg["path"], split="train")
-        else:
-            logger.info("Loading: %s", cfg["name"])
-            ds = load_dataset(cfg["name"], split=cfg["split"])
 
-        if cfg["text_col"] != "text":
-            ds = ds.rename_column(cfg["text_col"], "text")
+    all_datasets = []
+    for path in RAW_DATASETS:
+        logger.info("Loading: %s", path)
+        ds = load_dataset("parquet", data_files=path, split="train")
         ds = ds.select_columns(["text"])
         logger.info("  %s samples", f"{len(ds):,}")
         all_datasets.append(ds)
@@ -43,8 +36,7 @@ def train_tokenizer():
     tokenizer = ByteLevelBPETokenizer()
     logger.info(
         "Training tokenizer: vocab_size=%s, min_freq=%s",
-        f"{VOCAB_SIZE:,}",
-        MIN_FREQUENCY,
+        f"{VOCAB_SIZE:,}", MIN_FREQUENCY,
     )
     tokenizer.train_from_iterator(
         get_training_corpus(all_datasets),

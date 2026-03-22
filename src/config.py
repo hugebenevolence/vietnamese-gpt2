@@ -7,10 +7,18 @@ CHECKPOINT_DIR = "./artifacts/checkpoints/scratch_init"
 MODEL_DIR = "./artifacts/checkpoints/scratch_init/final"
 
 # ── Dataset ──────────────────────────────────────────────────────────────────
-# weight: how many times to duplicate a dataset during pretraining (default 1).
-DATASET_CONFIGS = [
-    {"path": "data/train/bkai_train.parquet", "text_col": "text"},
-    {"path": "data/train/vi_wiki_articles_clean.parquet", "text_col": "text", "weight": 3},
+RAW_DATASETS = [
+    "data/train/bkai_train.parquet",
+    "data/train/vi_wiki_articles_clean.parquet",
+]
+
+DEDUP_DIR = "data/train/deduped"
+
+# Deduped sources for training. weight = how many times the source is repeated
+# in the training mixture (the deduped parquets on disk stay unique).
+DATASETS = [
+    {"path": "data/train/deduped/bkai_train.parquet", "weight": 1},
+    {"path": "data/train/deduped/vi_wiki_articles_clean.parquet", "weight": 3},
 ]
 
 # ── Tokenizer training ──────────────────────────────────────────────────────
@@ -43,8 +51,6 @@ TEMPERATURE = 0.7
 TOP_K = 50
 TOP_P = 0.95
 REPETITION_PENALTY = 1.2
-DO_SAMPLE = True
-NUM_RETURN_SEQUENCES = 1
 
 # ── Poem SFT ─────────────────────────────────────────────────────────────────
 POEM_DATA_PATH = "data/sft/poem_stanzas.jsonl"

@@ -1,65 +1,44 @@
 #!/usr/bin/env python3
 import logging
 
-from transformers import GPT2LMHeadModel, GPT2TokenizerFast
-
 from src.config import (
-    MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE, TOP_K, TOP_P,
-    REPETITION_PENALTY, DO_SAMPLE, NUM_RETURN_SEQUENCES,
+    MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE,
+    TOP_K, TOP_P, REPETITION_PENALTY,
 )
-from src.utils import (
-    configure_root_logging,
-    gpt2_generate_texts,
-    load_gpt2_lm_head,
-)
+from src.utils import configure_root_logging, generate_texts, load_gpt2
 
 logger = logging.getLogger(__name__)
 
-
-def load_model_and_tokenizer() -> tuple[GPT2LMHeadModel, GPT2TokenizerFast, str]:
-    model, tokenizer, device = load_gpt2_lm_head(MODEL_DIR, eval_mode=True)
-    n_params = sum(p.numel() for p in model.parameters()) / 1e6
-    logger.info(
-        "Loaded model from %s (%s) — %.1fM params, vocab=%s",
-        MODEL_DIR, device, n_params, f"{len(tokenizer):,}",
-    )
-    return model, tokenizer, device
-
+DEFAULT_GEN_CONFIG = {
+    "max_new_tokens": MAX_NEW_TOKENS,
+    "temperature": TEMPERATURE,
+    "top_k": TOP_K,
+    "top_p": TOP_P,
+    "repetition_penalty": REPETITION_PENALTY,
+    "do_sample": True,
+}
 
 
-def interactive_mode(
-    model: GPT2LMHeadModel,
-    tokenizer: GPT2TokenizerFast,
-    device: str,
-) -> None:
+def interactive_mode(model, tokenizer, device):
     logger.info("Interactive mode. Type 'quit' to exit, 'config' to change params.")
-
-    gen_config = {
-        "max_new_tokens": MAX_NEW_TOKENS,
-        "temperature": TEMPERATURE,
-        "top_k": TOP_K,
-        "top_p": TOP_P,
-        "repetition_penalty": REPETITION_PENALTY,
-    }
+    gen_config = dict(DEFAULT_GEN_CONFIG)
 
     while True:
         try:
             prompt = input("Prompt: ").strip()
 
-            if prompt.lower() in ["quit", "exit", "q"]:
+            if prompt.lower() in ("quit", "exit", "q"):
                 break
-
             if prompt.lower() == "config":
                 for key, value in gen_config.items():
                     new_value = input(f"  {key} [{value}]: ").strip()
                     if new_value:
                         gen_config[key] = type(value)(new_value)
                 continue
-
             if not prompt:
                 continue
 
-            for text in gpt2_generate_texts(model, tokenizer, device, prompt, **gen_config):
+            for text in generate_texts(model, tokenizer, device, prompt, **gen_config):
                 logger.info("\n%s\n", text)
 
         except KeyboardInterrupt:
@@ -68,11 +47,15 @@ def interactive_mode(
             logger.exception("Generation error: %s", e)
 
 
-def run_test_examples(
-    model: GPT2LMHeadModel,
-    tokenizer: GPT2TokenizerFast,
-    device: str,
-) -> None:
+def main():
+    configure_root_logging()
+    model, tokenizer, device = load_gpt2(MODEL_DIR, eval_mode=True)
+    n_params = sum(p.numel() for p in model.parameters()) / 1e6
+    logger.info(
+        "Loaded model from %s (%s) — %.1fM params, vocab=%s",
+        MODEL_DIR, device, n_params, f"{len(tokenizer):,}",
+    )
+
     test_prompts = [
         "Việt Nam là một đất nước",
         "Hôm nay thời tiết rất đẹp,",
@@ -83,15 +66,9 @@ def run_test_examples(
 
     for i, prompt in enumerate(test_prompts, 1):
         logger.info("[%d/%d] %s", i, len(test_prompts), prompt)
-        for text in gpt2_generate_texts(model, tokenizer, device, prompt):
+        for text in generate_texts(model, tokenizer, device, prompt, **DEFAULT_GEN_CONFIG):
             logger.info("%s", text)
         logger.info("")
-
-
-def main() -> None:
-    configure_root_logging()
-    model, tokenizer, device = load_model_and_tokenizer()
-    run_test_examples(model, tokenizer, device)
 
     user_input = input("Enter interactive mode? [Y/n]: ").strip().lower()
     if user_input != "n":

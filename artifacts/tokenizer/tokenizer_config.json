@@ -1,19 +1,9 @@
 {
   "add_prefix_space": false,
-  "added_tokens_decoder": {
-    "0": {
-      "content": "<|endoftext|>",
-      "lstrip": false,
-      "normalized": false,
-      "rstrip": false,
-      "single_word": false,
-      "special": true
-    }
-  },
+  "backend": "tokenizers",
   "bos_token": "<|endoftext|>",
-  "clean_up_tokenization_spaces": false,
   "eos_token": "<|endoftext|>",
-  "extra_special_tokens": {},
+  "errors": "replace",
   "model_max_length": 1024,
   "pad_token": "<|endoftext|>",
   "tokenizer_class": "GPT2Tokenizer",

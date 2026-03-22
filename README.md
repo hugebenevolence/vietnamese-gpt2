@@ -1,6 +1,6 @@
 # Vietnamese GPT-2 Pre-training
 
-Pre-train GPT-2 from scratch on Vietnamese text data (BKAI News + Wikipedia), with optional supervised fine-tuning (SFT) for poetry generation.
+Pre-train GPT-2 from scratch on Vietnamese data, with optional supervised fine-tuning (SFT) for poetry generation.
 
 ## Requirements
 
@@ -16,14 +16,12 @@ uv sync && uv pip install -e .
 
 Run scripts from the **repository root** (paths in `src/config.py` are relative to cwd).
 
-`requirements.txt` and `pyproject.toml` list the same runtime dependencies.
-
 ## Project Structure
 
 ```
 src/
   config.py           # Hyperparameters and paths
-  utils.py            # Text norm, logging, GPT-2 load, shared generation helper
+  utils.py            # Text norm, logging, GPT-2 helpers
   train.py            # Pre-training (DDP-capable)
   inference.py        # General text generation
   train_sft.py        # Poem SFT
@@ -33,6 +31,7 @@ data_prep/
   news/download_datasets.py
   wiki/crawl_vi_wiki.py
   wiki/process_vi_wiki.py
+  deduplicate.py
   poem/...
 data/                 # Outputs: raws/, train/, sft/ (see .gitignore)
 scripts/
@@ -59,14 +58,23 @@ uv run python data_prep/wiki/process_vi_wiki.py
 uv run python src/train_tokenizer.py
 ```
 
-### 3. Train Model
+### 3. Deduplicate
 
 ```bash
-uv run python src/train.py
+uv run python data_prep/deduplicate.py                   # with token audit
+uv run python data_prep/deduplicate.py --skip-token-audit # faster, no tokenizer needed
+```
+
+Outputs deduplicated parquets to `data/train/deduped/` and an audit report
+(`data/train/deduped/dedup_report.json`) with per-source stats and token budget analysis.
+
+### 4. Train Model
+
+```bash
 bash scripts/train.sh
 ```
 
-### 4. Inference
+### 5. Inference
 
 ```bash
 uv run python src/inference.py
@@ -85,7 +93,7 @@ uv run python data_prep/poem/prepare_poem_data.py
 ### 2. Train SFT
 
 ```bash
-uv run bash scripts/train_sft_poem.sh
+bash scripts/train_sft_poem.sh
 ```
 
 ### 3. Generate Poems

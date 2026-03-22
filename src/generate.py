@@ -9,7 +9,7 @@ from src.config import (
     POEM_MODEL_DIR, POEM_PREFIX,
     TEMPERATURE, TOP_K, TOP_P, REPETITION_PENALTY,
 )
-from src.utils import configure_root_logging, gpt2_generate_texts, load_gpt2_lm_head
+from src.utils import configure_root_logging, generate_texts, load_gpt2
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def generate_poems(tokenizer, model, device, prompt: str = "", num_samples: int = 2) -> list[str]:
     """Generate poems from optional first-line prompt; strip SFT prefix from output."""
     full_prompt = POEM_PREFIX + prompt
-    texts = gpt2_generate_texts(
+    texts = generate_texts(
         model,
         tokenizer,
         device,
@@ -30,17 +30,12 @@ def generate_poems(tokenizer, model, device, prompt: str = "", num_samples: int 
         top_k=TOP_K,
         repetition_penalty=REPETITION_PENALTY,
     )
-    out = []
-    for text in texts:
-        if text.startswith("thơ:"):
-            text = text[4:].strip()
-        out.append(text)
-    return out
+    return [t[4:].strip() if t.startswith("thơ:") else t for t in texts]
 
 
-def main() -> None:
+def main():
     configure_root_logging()
-    model, tokenizer, device = load_gpt2_lm_head(
+    model, tokenizer, device = load_gpt2(
         POEM_MODEL_DIR,
         torch_dtype=torch.bfloat16,
         tie_weights=True,
@@ -57,19 +52,16 @@ def main() -> None:
 
     for prompt in prompts:
         logger.info("\n[Prompt: %s]", prompt or "(empty)")
-        for poem in generate_poems(tokenizer, model, device, prompt):
-            logger.info("%s", poem)
-            logger.info("")
+        for poem in generate_poems(model, tokenizer, device, prompt):
+            logger.info("%s\n", poem)
 
     logger.info("Interactive mode (type 'q' to quit)")
     while True:
         prompt = input("\nFirst line: ").strip()
         if prompt.lower() == "q":
             break
-
-        for poem in generate_poems(tokenizer, model, device, prompt):
-            logger.info("%s", poem)
-            logger.info("")
+        for poem in generate_poems(model, tokenizer, device, prompt):
+            logger.info("%s\n", poem)
 
 
 if __name__ == "__main__":
