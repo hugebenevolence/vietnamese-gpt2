@@ -2,7 +2,7 @@
 """Scrape poem content from thivien.net using curl_cffi + BeautifulSoup."""
 
 import argparse
-import logging
+from loguru import logger
 import os
 import random
 import re
@@ -14,12 +14,8 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests
 from tqdm import tqdm
 
-from src.utils import configure_root_logging
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _DATA_RAW = REPO_ROOT / "data" / "raws"
-
-log = logging.getLogger(__name__)
 
 RETRY_MAX = 3
 RETRY_BASE_DELAY = 5.0
@@ -38,14 +34,11 @@ SESSION.headers.update({
     "Referer": "https://www.thivien.net/",
 })
 
-
 def random_sleep():
     time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
 
-
 def is_blocked(html: str) -> bool:
     return "Xác nhận không phải máy" in html
-
 
 def fetch_html(url: str) -> str | None:
     """Fetch HTML with retry + exponential backoff."""
@@ -55,23 +48,22 @@ def fetch_html(url: str) -> str | None:
             resp.raise_for_status()
 
             if is_blocked(resp.text):
-                log.error("[BLOCKED] %s", url)
+                logger.error("[BLOCKED] {}", url)
                 return None
 
             return resp.text
 
         except Exception as e:
             wait = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            log.warning("[Retry %d/%d] %s -> %s. Wait %.0fs...", attempt, RETRY_MAX, url, e, wait)
+            logger.warning("[Retry {}/{}] {} -> {}. Wait {:.0f}s...", attempt, RETRY_MAX, url, e, wait)
             time.sleep(wait)
 
-    log.error("[FAIL] Could not fetch after %d attempts: %s", RETRY_MAX, url)
+    logger.error("[FAIL] Could not fetch after {} attempts: {}", RETRY_MAX, url)
     return None
-
 
 def login(username: str, password: str) -> bool:
     """Login to thivien.net."""
-    log.info("Logging in to thivien.net...")
+    logger.info("Logging in to thivien.net...")
     try:
         resp = SESSION.post(
             "https://www.thivien.net/login.php",
@@ -86,21 +78,20 @@ def login(username: str, password: str) -> bool:
         )
 
         if "_UserUID" in resp.text and "null" not in resp.text[resp.text.find("_UserUID"):resp.text.find("_UserUID")+30]:
-            log.info("Login successful!")
+            logger.info("Login successful!")
             return True
 
         test_html = fetch_html(COOKIE_TEST_URL)
         if test_html and "poem-content" in test_html:
-            log.info("Login successful!")
+            logger.info("Login successful!")
             return True
 
-        log.error("Login failed! Check THIVIEN_USERNAME and THIVIEN_PASSWORD.")
+        logger.error("Login failed! Check THIVIEN_USERNAME and THIVIEN_PASSWORD.")
         return False
 
     except Exception as e:
-        log.error("Login error: %s", e)
+        logger.error("Login error: {}", e)
         return False
-
 
 def extract_poem_raw(html: str, poem_src: str, poem_url: str, default_title: str = "") -> list:
     """Extract raw HTML from poem-content div."""
@@ -121,7 +112,6 @@ def extract_poem_raw(html: str, poem_src: str, poem_url: str, default_title: str
 
     return poems
 
-
 def scrape_poem(url: str, default_title: str = "") -> list:
     html = fetch_html(url)
     if not html:
@@ -130,7 +120,7 @@ def scrape_poem(url: str, default_title: str = "") -> list:
     soup = BeautifulSoup(html, "html.parser")
     content_div = soup.select_one("div.poem-content")
     if not content_div:
-        log.warning("[WARN] No div.poem-content found: %s", url)
+        logger.warning("[WARN] No div.poem-content found: {}", url)
         return []
 
     inner_html = str(content_div)
@@ -141,7 +131,6 @@ def scrape_poem(url: str, default_title: str = "") -> list:
 
     return extract_poem_raw(inner_html, poem_src, url, default_title)
 
-
 def append_to_csv(data: list, filepath: str) -> None:
     df = pd.DataFrame(data)
     if os.path.exists(filepath):
@@ -149,29 +138,28 @@ def append_to_csv(data: list, filepath: str) -> None:
     else:
         df.to_csv(filepath, index=False, encoding="utf-8-sig")
 
-
 def run(metadata_file: str, output_file: str, resume: bool = True) -> None:
     if not login(THIVIEN_USERNAME, THIVIEN_PASSWORD):
         return
 
     if not os.path.exists(metadata_file):
-        log.error("Metadata file not found: %s", metadata_file)
+        logger.error("Metadata file not found: {}", metadata_file)
         return
 
     df_meta = pd.read_csv(metadata_file, encoding="utf-8-sig")
-    log.info("Loaded %d poems from %s", len(df_meta), metadata_file)
+    logger.info("Loaded {} poems from {}", len(df_meta), metadata_file)
 
     scraped_urls: set = set()
     if resume and os.path.exists(output_file):
         df_done = pd.read_csv(output_file, encoding="utf-8-sig")
         scraped_urls = set(df_done["url"].dropna().unique())
-        log.info("Resume: skipping %d already scraped", len(scraped_urls))
+        logger.info("Resume: skipping {} already scraped", len(scraped_urls))
 
     df_todo = df_meta[~df_meta["url"].isin(scraped_urls)].copy()
-    log.info("Remaining: %d poems", len(df_todo))
+    logger.info("Remaining: {} poems", len(df_todo))
 
     if df_todo.empty:
-        log.info("All poems already scraped!")
+        logger.info("All poems already scraped!")
         return
 
     batch: list = []
@@ -187,7 +175,7 @@ def run(metadata_file: str, output_file: str, resume: bool = True) -> None:
         if not results:
             blocked_count += 1
             if blocked_count >= 5:
-                log.error("[STOP] 5 consecutive errors - possibly rate limited.")
+                logger.error("[STOP] 5 consecutive errors - possibly rate limited.")
                 if batch:
                     append_to_csv(batch, output_file)
                 break
@@ -201,17 +189,16 @@ def run(metadata_file: str, output_file: str, resume: bool = True) -> None:
 
         if len(batch) >= CHECKPOINT_EVERY:
             append_to_csv(batch, output_file)
-            log.info("[CHECKPOINT] Saved %d poems", len(batch))
+            logger.info("[CHECKPOINT] Saved {} poems", len(batch))
             batch = []
 
     if batch:
         append_to_csv(batch, output_file)
 
-    log.info("Done! Output: %s", output_file)
-
+    logger.info("Done! Output: {}", output_file)
 
 if __name__ == "__main__":
-    configure_root_logging(log_file=REPO_ROOT / "scrape_poem_content.log")
+    logger.add(REPO_ROOT / "scrape_poem_content.log")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--metadata",

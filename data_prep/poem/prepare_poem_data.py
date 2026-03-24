@@ -3,7 +3,7 @@
 
 import html
 import json
-import logging
+from loguru import logger
 import os
 import re
 
@@ -13,13 +13,10 @@ from src.config import (
     POEM_RAW_CSV, POEM_DATA_PATH,
     POEM_LINES_PER_STANZA, POEM_WORDS_PER_LINE,
 )
-from src.utils import configure_root_logging, normalize_text
-
-logger = logging.getLogger(__name__)
+from src.utils import normalize_text
 
 _TRAILING_PUNCT = re.compile(r'[\"\u201c\u201d\u2018\u2019":;,\-–—]+$')
 _LEADING_PUNCT = re.compile(r'^[\"\u201c\u201d\u2018\u2019]+')
-
 
 def clean_html_tags(text: str) -> str:
     """Remove HTML tags and decode entities."""
@@ -36,13 +33,11 @@ def clean_html_tags(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
-
 def clean_source_column(source: str) -> str:
     if pd.isna(source) or not source:
         return ""
     source = re.sub(r"Bình luận nhanh.*", "", source, flags=re.IGNORECASE)
     return source.strip()
-
 
 def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["content"] = df["content"].apply(
@@ -57,7 +52,6 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df["content"].str.strip() != ""].copy()
     return df
 
-
 def clean_line(line: str) -> str:
     """Normalize a poem line."""
     line = re.sub(r"\s+", " ", line).strip()
@@ -66,12 +60,10 @@ def clean_line(line: str) -> str:
     line = normalize_text(line)
     return line
 
-
 def count_words(line: str) -> int:
     """Count words in a line (excluding punctuation)."""
     cleaned = re.sub(r"[.,!?;:\"'\u201c\u201d\u2018\u2019\-–—()]", " ", line)
     return len(cleaned.split())
-
 
 def extract_valid_stanzas(content: str) -> list[str]:
     """Extract stanzas with exactly 4 lines x 5 words each."""
@@ -90,9 +82,7 @@ def extract_valid_stanzas(content: str) -> list[str]:
 
     return valid
 
-
 def main() -> None:
-    configure_root_logging()
     df = pd.read_csv(POEM_RAW_CSV, encoding="utf-8-sig")
     df = clean_dataframe(df)
 
@@ -112,8 +102,7 @@ def main() -> None:
             json.dump({"text": stanza}, f, ensure_ascii=False)
             f.write("\n")
 
-    logger.info("Saved %d stanzas to %s", len(unique_stanzas), POEM_DATA_PATH)
-
+    logger.info("Saved {} stanzas to {}", len(unique_stanzas), POEM_DATA_PATH)
 
 if __name__ == "__main__":
     main()

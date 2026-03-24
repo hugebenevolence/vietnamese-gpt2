@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SFT GPT-2 for 5-word quatrain generation (4 lines x 5 words)."""
 
-import logging
+from loguru import logger
 import os
 
 import torch
@@ -14,15 +14,11 @@ from src.config import (
     POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
     POEM_WEIGHT_DECAY, POEM_MAX_LENGTH,
 )
-from src.utils import configure_root_logging, load_gpt2, normalize_text
-
-logger = logging.getLogger(__name__)
-
+from src.utils import load_gpt2, normalize_text
 
 def main() -> None:
-    configure_root_logging()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info("Device: %s", device)
+    logger.info("Device: {}", device)
 
     dtype = torch.bfloat16 if BF16 else torch.float32
     model, tokenizer, _ = load_gpt2(
@@ -33,14 +29,14 @@ def main() -> None:
         eval_mode=False,
     )
     logger.info(
-        "Loaded base model from %s — %.1fM params",
+        "Loaded base model from {} — {:.1f}M params",
         MODEL_DIR,
         sum(p.numel() for p in model.parameters()) / 1e6,
     )
 
-    logger.info("Loading data from %s", POEM_DATA_PATH)
+    logger.info("Loading data from {}", POEM_DATA_PATH)
     ds = load_dataset("json", data_files=POEM_DATA_PATH, split="train")
-    logger.info("Samples: %s", f"{len(ds):,}")
+    logger.info("Samples: {}", f"{len(ds):,}")
 
     eos = tokenizer.eos_token
     prefix_len = len(tokenizer(POEM_PREFIX, add_special_tokens=False)["input_ids"])
@@ -59,7 +55,7 @@ def main() -> None:
 
     ds = ds.map(tokenize, batched=True, remove_columns=ds.column_names)
     ds = ds.train_test_split(test_size=0.1, seed=42)
-    logger.info("Train: %d | Eval: %d", len(ds["train"]), len(ds["test"]))
+    logger.info("Train: {} | Eval: {}", len(ds["train"]), len(ds["test"]))
 
     args = TrainingArguments(
         output_dir=POEM_CHECKPOINT_DIR,
@@ -90,7 +86,7 @@ def main() -> None:
     )
 
     logger.info(
-        "Training: epochs=%s, batch=%s, lr=%s",
+        "Training: epochs={}, batch={}, lr={}",
         POEM_EPOCHS, POEM_BATCH_SIZE, POEM_LEARNING_RATE,
     )
     trainer.train()
@@ -102,9 +98,8 @@ def main() -> None:
     result = trainer.evaluate()
     loss = result["eval_loss"]
     ppl = torch.exp(torch.tensor(loss)).item()
-    logger.info("Done. Loss=%.4f, PPL=%.1f", loss, ppl)
-    logger.info("Saved to %s", final_dir)
-
+    logger.info("Done. Loss={:.4f}, PPL={:.1f}", loss, ppl)
+    logger.info("Saved to {}", final_dir)
 
 if __name__ == "__main__":
     main()

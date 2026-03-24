@@ -6,6 +6,7 @@ torch>=2.2
 transformers>=4.35.0
 
 # Training
+loguru
 tqdm>=4.66.0
 wandb>=0.16.0
 

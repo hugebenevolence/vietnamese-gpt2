@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import logging
+from loguru import logger
 import os
 
 from datasets import load_dataset
@@ -10,10 +10,7 @@ from src.config import (
     RAW_DATASETS, VOCAB_SIZE, MIN_FREQUENCY,
     SPECIAL_TOKEN, TOKENIZER_DIR, MAX_LENGTH,
 )
-from src.utils import configure_root_logging, normalize_text
-
-logger = logging.getLogger(__name__)
-
+from src.utils import normalize_text
 
 def get_training_corpus(datasets_list, batch_size=10000):
     for dataset in datasets_list:
@@ -21,21 +18,19 @@ def get_training_corpus(datasets_list, batch_size=10000):
             batch = dataset[i : i + batch_size]
             yield [normalize_text(text) for text in batch["text"]]
 
-
 def train_tokenizer():
-    configure_root_logging()
 
     all_datasets = []
     for path in RAW_DATASETS:
-        logger.info("Loading: %s", path)
+        logger.info("Loading: {}", path)
         ds = load_dataset("parquet", data_files=path, split="train")
         ds = ds.select_columns(["text"])
-        logger.info("  %s samples", f"{len(ds):,}")
+        logger.info("  {} samples", f"{len(ds):,}")
         all_datasets.append(ds)
 
     tokenizer = ByteLevelBPETokenizer()
     logger.info(
-        "Training tokenizer: vocab_size=%s, min_freq=%s",
+        "Training tokenizer: vocab_size={}, min_freq={}",
         f"{VOCAB_SIZE:,}", MIN_FREQUENCY,
     )
     tokenizer.train_from_iterator(
@@ -62,12 +57,11 @@ def train_tokenizer():
     test_text = "Xin chào Việt Nam! Đây là bài kiểm tra tokenizer."
     encoded = gpt2_tokenizer.encode(normalize_text(test_text))
     decoded = gpt2_tokenizer.decode(encoded)
-    logger.info("Vocab size: %s", f"{len(gpt2_tokenizer):,}")
-    logger.info("Test: %r → %d tokens → %r", test_text, len(encoded), decoded)
-    logger.info("Saved to: %s", TOKENIZER_DIR)
+    logger.info("Vocab size: {}", f"{len(gpt2_tokenizer):,}")
+    logger.info("Test: {} → {} tokens → {}", test_text, len(encoded), decoded)
+    logger.info("Saved to: {}", TOKENIZER_DIR)
 
     return gpt2_tokenizer
-
 
 if __name__ == "__main__":
     train_tokenizer()

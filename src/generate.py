@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate 5-word quatrains from SFT model."""
 
-import logging
+from loguru import logger
 
 import torch
 
@@ -9,10 +9,7 @@ from src.config import (
     POEM_MODEL_DIR, POEM_PREFIX,
     TEMPERATURE, TOP_K, TOP_P, REPETITION_PENALTY,
 )
-from src.utils import configure_root_logging, generate_texts, load_gpt2
-
-logger = logging.getLogger(__name__)
-
+from src.utils import generate_texts, load_gpt2
 
 def generate_poems(tokenizer, model, device, prompt: str = "", num_samples: int = 2) -> list[str]:
     """Generate poems from optional first-line prompt; strip SFT prefix from output."""
@@ -32,9 +29,7 @@ def generate_poems(tokenizer, model, device, prompt: str = "", num_samples: int 
     )
     return [t[4:].strip() if t.startswith("thơ:") else t for t in texts]
 
-
 def main():
-    configure_root_logging()
     model, tokenizer, device = load_gpt2(
         POEM_MODEL_DIR,
         torch_dtype=torch.bfloat16,
@@ -51,9 +46,9 @@ def main():
     ]
 
     for prompt in prompts:
-        logger.info("\n[Prompt: %s]", prompt or "(empty)")
+        logger.info("\n[Prompt: {}]", prompt or "(empty)")
         for poem in generate_poems(model, tokenizer, device, prompt):
-            logger.info("%s\n", poem)
+            logger.info("{}\n", poem)
 
     logger.info("Interactive mode (type 'q' to quit)")
     while True:
@@ -61,8 +56,7 @@ def main():
         if prompt.lower() == "q":
             break
         for poem in generate_poems(model, tokenizer, device, prompt):
-            logger.info("%s\n", poem)
-
+            logger.info("{}\n", poem)
 
 if __name__ == "__main__":
     main()

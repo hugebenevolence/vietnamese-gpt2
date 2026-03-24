@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import logging
+from loguru import logger
 import os
 from itertools import chain
 
@@ -25,14 +25,10 @@ from src.config import (
     GRADIENT_CHECKPOINTING, DATALOADER_NUM_WORKERS,
     WANDB_RUN_NAME,
 )
-from src.utils import configure_root_logging, normalize_text
-
-logger = logging.getLogger(__name__)
-
+from src.utils import normalize_text
 
 def is_main_process():
     return int(os.environ.get("LOCAL_RANK", 0)) == 0
-
 
 def load_and_prepare_dataset(tokenizer):
     _main = is_main_process()
@@ -48,7 +44,7 @@ def load_and_prepare_dataset(tokenizer):
             ds = concatenate_datasets([ds] * weight)
 
         if _main:
-            logger.info("  %s: %s samples (weight=%d)", src["path"], f"{len(ds):,}", weight)
+            logger.info("  {}: {} samples (weight={})", src["path"], f"{len(ds):,}", weight)
         all_datasets.append(ds)
 
     dataset = concatenate_datasets(all_datasets).shuffle(seed=42)
@@ -93,7 +89,7 @@ def load_and_prepare_dataset(tokenizer):
     if _main:
         total_tokens = len(grouped) * MAX_LENGTH
         logger.info(
-            "Dataset: %s train / %s eval blocks (%.2fB tokens)",
+            "Dataset: {} train / {} eval blocks ({:.2f}B tokens)",
             f"{len(split['train']):,}",
             f"{len(split['test']):,}",
             total_tokens / 1e9,
@@ -101,15 +97,13 @@ def load_and_prepare_dataset(tokenizer):
 
     return split
 
-
 def main():
-    configure_root_logging()
     _main = is_main_process()
 
     if _main:
         if torch.cuda.is_available():
             mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
-            logger.info("GPU: %s (%.1f GB)", torch.cuda.get_device_name(0), mem_gb)
+            logger.info("GPU: {} ({:.1f} GB)", torch.cuda.get_device_name(0), mem_gb)
         else:
             logger.warning("No GPU detected. Training will be slow.")
 
@@ -117,7 +111,7 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     if _main:
-        logger.info("Tokenizer: %s (vocab_size=%s)", TOKENIZER_DIR, f"{len(tokenizer):,}")
+        logger.info("Tokenizer: {} (vocab_size={})", TOKENIZER_DIR, f"{len(tokenizer):,}")
 
     config = GPT2Config.from_pretrained(BASE_MODEL)
     config.vocab_size = len(tokenizer)
@@ -129,7 +123,7 @@ def main():
         model.gradient_checkpointing_enable()
     if _main:
         n_params = sum(p.numel() for p in model.parameters())
-        logger.info("Model: random init, %.1fM params, flash_attention_2, bf16", n_params / 1e6)
+        logger.info("Model: random init, {:.1f}M params, flash_attention_2, bf16", n_params / 1e6)
 
     dataset = load_and_prepare_dataset(tokenizer)
 
@@ -175,7 +169,7 @@ def main():
             PER_DEVICE_TRAIN_BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS * num_gpus
         )
         logger.info(
-            "Training: lr=%s, batch=%s, max_steps=%s (%.2fB tokens)",
+            "Training: lr={}, batch={}, max_steps={} ({:.2f}B tokens)",
             LEARNING_RATE, effective_batch, f"{max_steps:,}", TOKEN_BUDGET / 1e9,
         )
 
@@ -191,7 +185,7 @@ def main():
     resume_from = get_last_checkpoint(CHECKPOINT_DIR) if os.path.isdir(CHECKPOINT_DIR) else None
     if _main:
         if resume_from:
-            logger.info("Resuming from: %s", resume_from)
+            logger.info("Resuming from: {}", resume_from)
         else:
             logger.info("Starting fresh training...")
 
@@ -206,9 +200,8 @@ def main():
     if _main:
         loss = result["eval_loss"]
         ppl = torch.exp(torch.tensor(loss)).item()
-        logger.info("Done. Eval loss=%.4f, perplexity=%.2f", loss, ppl)
-        logger.info("Model saved to: %s", final_dir)
-
+        logger.info("Done. Eval loss={:.4f}, perplexity={:.2f}", loss, ppl)
+        logger.info("Model saved to: {}", final_dir)
 
 if __name__ == "__main__":
     main()

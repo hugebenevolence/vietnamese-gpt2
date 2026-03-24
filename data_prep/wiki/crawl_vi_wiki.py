@@ -15,14 +15,12 @@ API Docs:
 
 import argparse
 import json
-import logging
+from loguru import logger
 import time
 import urllib.parse
 from pathlib import Path
 
 import requests
-
-from src.utils import configure_root_logging
 
 API_ENDPOINT = "https://vi.wikipedia.org/w/api.php"
 
@@ -39,14 +37,10 @@ BATCH_SIZE = 50
 # Number of pages whose content we fetch per query (max 50 for anon)
 CONTENT_BATCH = 50
 
-logger = logging.getLogger(__name__)
-
-
 def make_session() -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
     return session
-
 
 def _parse_retry_after(value: str | None, default: int) -> int:
     """Parse Retry-After header, which may be an integer (seconds) or an
@@ -57,7 +51,6 @@ def _parse_retry_after(value: str | None, default: int) -> int:
         return int(value)
     except ValueError:
         return default
-
 
 def api_get(session: requests.Session, params: dict, retries: int = 5) -> dict:
     """
@@ -78,7 +71,7 @@ def api_get(session: requests.Session, params: dict, retries: int = 5) -> dict:
                 if attempt == retries:
                     break
                 wait = _parse_retry_after(resp.headers.get("Retry-After"), default=60)
-                logger.warning("429 Too Many Requests – waiting %d s (attempt %d/%d)", wait, attempt, retries)
+                logger.warning("429 Too Many Requests – waiting {} s (attempt {}/{})", wait, attempt, retries)
                 time.sleep(wait)
                 continue
 
@@ -88,7 +81,7 @@ def api_get(session: requests.Session, params: dict, retries: int = 5) -> dict:
             try:
                 data = resp.json()
             except ValueError as exc:
-                logger.warning("Invalid JSON in response (attempt %d/%d)", attempt, retries)
+                logger.warning("Invalid JSON in response (attempt {}/{})", attempt, retries)
                 if attempt < retries:
                     time.sleep(2 ** attempt)
                     continue
@@ -103,7 +96,7 @@ def api_get(session: requests.Session, params: dict, retries: int = 5) -> dict:
                     if attempt == retries:
                         break
                     wait = _parse_retry_after(resp.headers.get("Retry-After"), default=5)
-                    logger.warning("maxlag – waiting %d s (attempt %d/%d)", wait, attempt, retries)
+                    logger.warning("maxlag – waiting {} s (attempt {}/{})", wait, attempt, retries)
                     time.sleep(wait)
                     continue
                 raise RuntimeError(f"API error [{code}]: {info}")
@@ -112,19 +105,18 @@ def api_get(session: requests.Session, params: dict, retries: int = 5) -> dict:
             if "warnings" in data:
                 for module, warn in data["warnings"].items():
                     text = warn.get("warnings", str(warn)) if isinstance(warn, dict) else str(warn)
-                    logger.warning("API warning [%s]: %s", module, text)
+                    logger.warning("API warning [{}]: {}", module, text)
 
             return data
 
         except requests.RequestException as exc:
-            logger.warning("Request failed (attempt %d/%d): %s", attempt, retries, exc)
+            logger.warning("Request failed (attempt {}/{}): {}", attempt, retries, exc)
             if attempt < retries:
                 time.sleep(2 ** attempt)
             else:
                 raise RuntimeError(f"API request failed after {retries} attempts: {exc}") from exc
 
     raise RuntimeError(f"API request failed after {retries} attempts (rate-limit or maxlag not resolved)")
-
 
 def load_checkpoint(path: Path) -> tuple[dict, bool]:
     """Returns (data, is_valid). is_valid=False means the file was corrupt."""
@@ -133,10 +125,9 @@ def load_checkpoint(path: Path) -> tuple[dict, bool]:
             with path.open("r", encoding="utf-8") as f:
                 return json.load(f), True
         except json.JSONDecodeError:
-            logger.warning("Checkpoint file is corrupt: %s", path)
+            logger.warning("Checkpoint file is corrupt: {}", path)
             return {}, False
     return {}, True
-
 
 def save_checkpoint(path: Path, data: dict) -> None:
     # Write to a temp file then rename atomically so a mid-write kill
@@ -145,7 +136,6 @@ def save_checkpoint(path: Path, data: dict) -> None:
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     tmp.replace(path)
-
 
 def fetch_page_contents(session: requests.Session, page_ids: list[int], delay: float) -> dict[int, dict]:
     """
@@ -182,7 +172,6 @@ def fetch_page_contents(session: requests.Session, page_ids: list[int], delay: f
     time.sleep(delay)
     return results
 
-
 def crawl(
     output_dir: Path,
     max_articles: int | None,
@@ -209,7 +198,7 @@ def crawl(
     ap_continue: str | None = checkpoint.get("ap_continue")
 
     logger.info(
-        "Starting crawl. Output: %s | Max articles: %s | Resume: %s",
+        "Starting crawl. Output: {} | Max articles: {} | Resume: {}",
         output_file, max_articles or "unlimited", resume,
     )
 
@@ -235,7 +224,7 @@ def crawl(
     with output_file.open(open_mode, encoding="utf-8") as out_f:
         while True:
             if max_articles is not None and article_count >= max_articles:
-                logger.info("Reached max articles limit (%d). Stopping.", max_articles)
+                logger.info("Reached max articles limit ({}). Stopping.", max_articles)
                 break
 
             # ── Fetch a batch of page titles ───────────────────────────────
@@ -276,7 +265,7 @@ def crawl(
                         article_count += 1
 
                         if article_count % 100 == 0:
-                            logger.info("Crawled %d articles so far...", article_count)
+                            logger.info("Crawled {} articles so far...", article_count)
 
                         if max_articles is not None and article_count >= max_articles:
                             reached_limit = True
@@ -306,15 +295,14 @@ def crawl(
             })
 
             if not has_more:
-                logger.info("All pages enumerated. Total articles: %d", article_count)
+                logger.info("All pages enumerated. Total articles: {}", article_count)
                 break
 
             # ── Prepare next continuation ──────────────────────────────────
             allpages_params.update(data["continue"])
             time.sleep(delay)
 
-    logger.info("Done. %d articles saved to %s", article_count, output_file)
-
+    logger.info("Done. {} articles saved to {}", article_count, output_file)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -347,9 +335,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 if __name__ == "__main__":
-    configure_root_logging()
     args = parse_args()
     crawl(
         output_dir=args.output,

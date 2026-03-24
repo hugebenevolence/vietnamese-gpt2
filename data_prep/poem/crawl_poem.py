@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Crawl poem metadata from thivien.net (PoemType=16 - 5-word poems)."""
 
-import logging
+from loguru import logger
 import os
 import random
 import re
@@ -18,11 +18,7 @@ from selenium.webdriver.common.by import By
 from tqdm import tqdm
 from webdriver_manager.chrome import ChromeDriverManager
 
-from src.utils import configure_root_logging
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-
-log = logging.getLogger(__name__)
 
 SORT_CONFIGS = [
     {"sort": "", "order": ""},
@@ -44,7 +40,6 @@ SLEEP_MIN = 2.0
 SLEEP_MAX = 4.0
 OUTPUT_DIR = REPO_ROOT / "data" / "raws"
 
-
 def init_driver() -> webdriver.Chrome:
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--headless")
@@ -63,7 +58,6 @@ def init_driver() -> webdriver.Chrome:
     driver.implicitly_wait(10)
     return driver
 
-
 def build_search_url(sort: str, order: str, page: int) -> str:
     url = BASE_SEARCH_URL
     if sort:
@@ -73,15 +67,12 @@ def build_search_url(sort: str, order: str, page: int) -> str:
     url += f"&Page={page}"
     return url
 
-
 def build_author_search_url(author_name: str, page: int) -> str:
     encoded = urllib.parse.quote(author_name)
     return f"https://www.thivien.net/search-poem.php?PoemType=16&Author={encoded}&Page={page}"
 
-
 def random_sleep():
     time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
-
 
 def safe_get(driver: webdriver.Chrome, url: str) -> bool:
     """Navigate to URL with retry + exponential backoff."""
@@ -92,17 +83,15 @@ def safe_get(driver: webdriver.Chrome, url: str) -> bool:
             return True
         except WebDriverException as e:
             wait_time = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            log.warning("[Retry %d/%d] %s -> %s. Wait %.0fs...", attempt, RETRY_MAX, url, e, wait_time)
+            logger.warning("[Retry {}/{}] {} -> {}. Wait {:.0f}s...", attempt, RETRY_MAX, url, e, wait_time)
             time.sleep(wait_time)
-    log.error("[FAIL] Could not access after %d attempts: %s", RETRY_MAX, url)
+    logger.error("[FAIL] Could not access after {} attempts: {}", RETRY_MAX, url)
     return False
-
 
 def is_blocked(driver: webdriver.Chrome) -> bool:
     block_signals = ["Danh sách quá dài", "Access denied", "Too many requests", "403 Forbidden"]
     page_src = driver.page_source
     return any(signal in page_src for signal in block_signals)
-
 
 def get_total_pages(driver: webdriver.Chrome, context: str = "") -> int:
     """Parse total pages from current page."""
@@ -128,7 +117,6 @@ def get_total_pages(driver: webdriver.Chrome, context: str = "") -> int:
 
     return 1
 
-
 def extract_author_for_poem_links(driver: webdriver.Chrome) -> list:
     """Extract poem metadata from list page."""
     results = []
@@ -152,9 +140,8 @@ def extract_author_for_poem_links(driver: webdriver.Chrome) -> list:
             except Exception:
                 continue
     except Exception as e:
-        log.warning("[WARN] extract_author_for_poem_links: %s", e)
+        logger.warning("[WARN] extract_author_for_poem_links: {}", e)
     return results
-
 
 def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
     """Collect poem metadata using sort configs and author pages."""
@@ -163,15 +150,15 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
     metadata_list: list = []
 
     # Step 1: Crawl by sort configs
-    log.info("=" * 70)
-    log.info("STEP 1: CRAWL BY SORT CONFIGS")
-    log.info("=" * 70)
+    logger.info("=" * 70)
+    logger.info("STEP 1: CRAWL BY SORT CONFIGS")
+    logger.info("=" * 70)
 
     for cfg in SORT_CONFIGS:
         sort = cfg["sort"]
         order = cfg["order"]
         label = f"Sort={sort or 'default'}/Order={order or 'default'}"
-        log.info("\n[%s]", label)
+        logger.info("\n[{}]", label)
 
         first_url = build_search_url(sort, order, 1)
         total_pages = 1
@@ -179,7 +166,7 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
             total_pages = get_total_pages(driver, context=label)
 
         pages_to_crawl = min(total_pages, MAX_PAGES_PER_CONFIG)
-        log.info("  Total pages: %d | Will crawl: %d", total_pages, pages_to_crawl)
+        logger.info("  Total pages: {} | Will crawl: {}", total_pages, pages_to_crawl)
 
         for page in range(1, pages_to_crawl + 1):
             if page > 1:
@@ -187,7 +174,7 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                 if not safe_get(driver, url):
                     continue
                 if is_blocked(driver):
-                    log.warning("  Page %d: blocked", page)
+                    logger.warning("  Page {}: blocked", page)
                     break
 
             page_items = extract_author_for_poem_links(driver)
@@ -205,14 +192,14 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                     metadata_list.append(item)
                     new_count += 1
 
-            log.info("  Page %d/%d: +%d new | Total: %d", page, pages_to_crawl, new_count, len(metadata_list))
+            logger.info("  Page {}/{}: +{} new | Total: {}", page, pages_to_crawl, new_count, len(metadata_list))
 
-    log.info("\nAfter Step 1: %d poems, %d authors", len(metadata_list), len(all_authors))
+    logger.info("\nAfter Step 1: {} poems, {} authors", len(metadata_list), len(all_authors))
 
     # Step 2: Crawl by author
-    log.info("\n" + "=" * 70)
-    log.info("STEP 2: CRAWL BY AUTHOR")
-    log.info("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("STEP 2: CRAWL BY AUTHOR")
+    logger.info("=" * 70)
 
     for author_name in tqdm(sorted(all_authors), desc="Authors"):
         url_p1 = build_author_search_url(author_name, 1)
@@ -243,9 +230,8 @@ def collect_metadata_by_authors(driver: webdriver.Chrome) -> list:
                     item["author"] = author_name
                     metadata_list.append(item)
 
-    log.info("\nTotal metadata: %d poems", len(metadata_list))
+    logger.info("\nTotal metadata: {} poems", len(metadata_list))
     return metadata_list
-
 
 def run_phase_1(driver: webdriver.Chrome, output_file: str | None = None):
     """Collect metadata and save to CSV."""
@@ -256,16 +242,15 @@ def run_phase_1(driver: webdriver.Chrome, output_file: str | None = None):
     metadata_list = collect_metadata_by_authors(driver)
     df = pd.DataFrame(metadata_list)
     df.to_csv(output_file, index=False, encoding="utf-8-sig")
-    log.info("\nDone! Saved %d poems to %s", len(metadata_list), output_file)
-
+    logger.info("\nDone! Saved {} poems to {}", len(metadata_list), output_file)
 
 if __name__ == "__main__":
-    configure_root_logging(log_file=REPO_ROOT / "crawl_poem.log")
+    logger.add(REPO_ROOT / "crawl_poem.log")
     driver = init_driver()
     try:
         output_file = sys.argv[1] if len(sys.argv) > 1 else None
         run_phase_1(driver, output_file)
     except KeyboardInterrupt:
-        log.info("\n[INTERRUPTED]")
+        logger.info("\n[INTERRUPTED]")
     finally:
         driver.quit()

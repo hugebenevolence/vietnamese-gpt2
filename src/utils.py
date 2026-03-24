@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """Shared utility functions."""
 
-import logging
 import unicodedata
 from pathlib import Path
 
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
-
 def normalize_text(text: str) -> str:
     """Apply Unicode NFC normalization, returning empty string for None."""
     if text is None:
         return ""
     return unicodedata.normalize("NFC", text)
-
 
 def format_size(num_bytes: int) -> str:
     """Format byte count as human-readable string (B/KB/MB/GB/TB)."""
@@ -23,19 +20,6 @@ def format_size(num_bytes: int) -> str:
             return f"{num_bytes:.2f} {unit}"
         num_bytes /= 1024.0
     return f"{num_bytes:.2f} TB"
-
-
-def configure_root_logging(level: int = logging.INFO) -> None:
-    """Initialize root logging once."""
-    root = logging.getLogger()
-    if root.handlers:
-        return
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
 
 def load_gpt2(model_dir, *, torch_dtype=None, tie_weights=False,
               pad_token_to_eos=False, eval_mode=True):
@@ -58,7 +42,6 @@ def load_gpt2(model_dir, *, torch_dtype=None, tie_weights=False,
         model.eval()
 
     return model, tokenizer, device
-
 
 def generate_texts(model, tokenizer, device, prompt, **kwargs):
     """Run model.generate on NFC-normalized prompt, return decoded strings."""

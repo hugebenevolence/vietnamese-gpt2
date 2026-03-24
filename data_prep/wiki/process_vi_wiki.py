@@ -11,7 +11,7 @@ Usage:
 import argparse
 import html as _html
 import json
-import logging
+from loguru import logger
 import re
 import sys
 from pathlib import Path
@@ -20,9 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 from datasets import Dataset
 
-from src.utils import configure_root_logging, format_size
-
-logger = logging.getLogger(__name__)
+from src.utils import format_size
 
 _DATA_RAW = REPO_ROOT / "data" / "raws"
 
@@ -65,7 +63,6 @@ def _remove_balanced_braces(text: str) -> str:
             i += 1
     return "".join(result)
 
-
 def _remove_wiki_tables(text: str) -> str:
     """Remove {| ... |} wiki table blocks, handling nesting."""
     result = []
@@ -91,7 +88,6 @@ def _remove_wiki_tables(text: str) -> str:
                 result.append(text[i])
             i += 1
     return "".join(result)
-
 
 def _remove_balanced_brackets(text: str) -> str:
     """
@@ -134,7 +130,6 @@ def _remove_balanced_brackets(text: str) -> str:
             i += 1
     return "".join(result)
 
-
 def _remove_single_brackets(text: str) -> str:
     """Remove/resolve external and interwiki single-bracket links.
 
@@ -156,7 +151,6 @@ def _remove_single_brackets(text: str) -> str:
     # External link without label: [url] -> ''
     text = re.sub(r"\[https?://[^\]]+\]", "", text)
     return text
-
 
 # Horizontal rules, bold/italic markup
 # Note: tables handled by _remove_wiki_tables(), section headers by _HEADERS
@@ -196,7 +190,6 @@ _TERMINAL_SECTION_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-
 def _strip_list_prefixes(text: str) -> str:
     """Strip wikitext list/definition-list prefix characters from each line.
 
@@ -235,7 +228,6 @@ def _strip_list_prefixes(text: str) -> str:
         else:
             out.append(line)
     return "\n".join(out)
-
 
 def clean_wikitext(raw: str) -> str:
     text = raw
@@ -302,13 +294,12 @@ def clean_wikitext(raw: str) -> str:
 
     return text
 
-
 def convert_jsonl_to_parquet(input_path: Path, output_parquet: Path) -> None:
     import os
 
     logger.info("Converting JSONL to Parquet...")
-    logger.info("  Input : %s", input_path)
-    logger.info("  Output: %s", output_parquet)
+    logger.info("  Input : {}", input_path)
+    logger.info("  Output: {}", output_parquet)
 
     # Load JSONL into list of dicts
     records = []
@@ -322,10 +313,10 @@ def convert_jsonl_to_parquet(input_path: Path, output_parquet: Path) -> None:
                     continue
 
     if not records:
-        logger.error("No valid records found in %s", input_path)
+        logger.error("No valid records found in {}", input_path)
         return
 
-    logger.info("  Loaded: %d records", len(records))
+    logger.info("  Loaded: {} records", len(records))
 
     # Convert to HuggingFace Dataset and save as Parquet
     ds = Dataset.from_list(records)
@@ -333,8 +324,7 @@ def convert_jsonl_to_parquet(input_path: Path, output_parquet: Path) -> None:
 
     # Get file size
     file_size = os.path.getsize(output_parquet)
-    logger.info("  Saved : %s (%s)", output_parquet, format_size(file_size))
-
+    logger.info("  Saved : {} ({})", output_parquet, format_size(file_size))
 
 def process(input_path: Path, output_path: Path) -> None:
     total = kept = 0
@@ -352,7 +342,7 @@ def process(input_path: Path, output_path: Path) -> None:
             try:
                 record = json.loads(line)
             except json.JSONDecodeError as e:
-                logger.warning("JSON decode error on line %d: %s", total, e)
+                logger.warning("JSON decode error on line {}: {}", total, e)
                 continue
 
             record["text"] = clean_wikitext(record.get("text", ""))
@@ -360,13 +350,12 @@ def process(input_path: Path, output_path: Path) -> None:
             kept += 1
 
             if kept % 500 == 0:
-                logger.info("Processed %d articles (kept %d so far)...", total, kept)
+                logger.info("Processed {} articles (kept {} so far)...", total, kept)
 
     logger.info("Done.")
-    logger.info("  Total read : %d", total)
-    logger.info("  Kept       : %d", kept)
-    logger.info("  Output     : %s", output_path)
-
+    logger.info("  Total read : {}", total)
+    logger.info("  Kept       : {}", kept)
+    logger.info("  Output     : {}", output_path)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -386,12 +375,10 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 if __name__ == "__main__":
-    configure_root_logging()
     args = parse_args()
     if not args.input.exists():
-        logger.error("Input file not found: %s", args.input)
+        logger.error("Input file not found: {}", args.input)
         sys.exit(1)
 
     # Step 1: Clean wikitext -> JSONL

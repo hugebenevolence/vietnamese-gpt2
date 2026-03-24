@@ -13,7 +13,7 @@ Usage:
 import argparse
 import hashlib
 import json
-import logging
+from loguru import logger
 import os
 from pathlib import Path
 
@@ -23,9 +23,7 @@ from tqdm.auto import tqdm
 from transformers import GPT2TokenizerFast
 
 from src import config as cfg
-from src.utils import configure_root_logging, format_size, normalize_text
-
-logger = logging.getLogger(__name__)
+from src.utils import format_size, normalize_text
 
 DEDUP_DIR = Path(cfg.DEDUP_DIR)
 
@@ -36,10 +34,8 @@ MIN_DOC_CHARS = 20
 BATCH_SIZE = 50_000
 TOKEN_BATCH_SIZE = 8192
 
-
 def sha_bytes(text):
     return hashlib.sha256(normalize_text(text).encode("utf-8")).digest()
-
 
 def dedup_paragraphs(text, seen_paras):
     kept = []
@@ -57,7 +53,6 @@ def dedup_paragraphs(text, seen_paras):
         kept.append(para)
     return "\n\n".join(kept).strip()
 
-
 def flush_rows(writer, out_path, rows):
     if not rows:
         return writer
@@ -67,7 +62,6 @@ def flush_rows(writer, out_path, rows):
     writer.write_table(table)
     rows.clear()
     return writer
-
 
 def dedup_all():
     os.makedirs(DEDUP_DIR, exist_ok=True)
@@ -82,7 +76,7 @@ def dedup_all():
 
     for path in cfg.RAW_DATASETS:
         if not os.path.exists(path):
-            logger.warning("Skipping (not found): %s", path)
+            logger.warning("Skipping (not found): {}", path)
             continue
 
         name = Path(path).stem
@@ -173,7 +167,7 @@ def dedup_all():
         outputs.append({"name": name, "path": str(out_path), "rows": stats["deduped_docs"]})
 
         logger.info(
-            "%-28s %s -> %s (-%s)",
+            "{} {} -> {} (-{})",
             name,
             f"{stats['original_docs']:,}",
             f"{stats['deduped_docs']:,}",
@@ -189,7 +183,6 @@ def dedup_all():
     )
 
     return outputs, report
-
 
 # ── Token audit ──────────────────────────────────────────────────────────────
 
@@ -223,10 +216,9 @@ def count_tokens(outputs):
             total_tokens += sum(enc["length"])
 
         counts[item["name"]] = total_tokens
-        logger.info("%-28s %s tokens", item["name"], f"{total_tokens:,}")
+        logger.info("{} {} tokens", item["name"], f"{total_tokens:,}")
 
     return counts
-
 
 def build_token_audit(token_counts):
     """Build token audit dict with unique counts and weighted effective counts."""
@@ -255,7 +247,6 @@ def build_token_audit(token_counts):
         "budget_gap_or_surplus": gap,
     }
 
-
 # ── Reporting ────────────────────────────────────────────────────────────────
 
 def print_summary(report):
@@ -266,7 +257,7 @@ def print_summary(report):
 
     for name, s in report["sources"].items():
         logger.info(
-            "%-28s %10s -> %10s  (-%s, %.1f%%)",
+            "{} {} -> {}  (-{}, {:.1f}%)",
             name,
             f"{s['original_docs']:,}",
             f"{s['deduped_docs']:,}",
@@ -276,7 +267,7 @@ def print_summary(report):
 
     logger.info("-" * 72)
     logger.info(
-        "%-28s %10s -> %10s  (-%s, %.1f%%)",
+        "{} {} -> {}  (-{}, {:.1f}%)",
         "TOTAL",
         f"{report['total_original_docs']:,}",
         f"{report['total_deduped_docs']:,}",
@@ -291,33 +282,31 @@ def print_summary(report):
 
     logger.info("")
     logger.info("TOKEN AUDIT (unique)")
-    logger.info("  Unique tokens after dedup : %s", f"{ta['unique_tokens']:,}")
-    logger.info("  Training token budget     : %s", f"{ta['token_budget']:,}")
-    logger.info("  Repeat factor (unweighted): %.2fx", ta["repeat_factor"])
+    logger.info("  Unique tokens after dedup : {}", f"{ta['unique_tokens']:,}")
+    logger.info("  Training token budget     : {}", f"{ta['token_budget']:,}")
+    logger.info("  Repeat factor (unweighted): {:.2f}x", ta["repeat_factor"])
 
     logger.info("")
     logger.info("TOKEN AUDIT (weighted training mixture)")
     for name, s in ta["sources"].items():
         logger.info(
-            "  %-26s %14s  x%d  = %14s",
+            "  {} {}  x{}  = {}",
             name, f"{s['tokens']:,}", s["weight"], f"{s['weighted_tokens']:,}",
         )
-    logger.info("  %-26s %14s", "Effective tokens", f"{ta['effective_tokens_with_weights']:,}")
-    logger.info("  %-26s %14s", "Token budget", f"{ta['token_budget']:,}")
+    logger.info("  {} {}", "Effective tokens", f"{ta['effective_tokens_with_weights']:,}")
+    logger.info("  {} {}", "Token budget", f"{ta['token_budget']:,}")
 
     gap = ta["budget_gap_or_surplus"]
     if ta["enough_for_budget"]:
-        logger.info("  → Surplus: %s tokens above budget", f"{gap:,}")
+        logger.info("  → Surplus: {} tokens above budget", f"{gap:,}")
     else:
-        logger.info("  → Gap: %s tokens below budget", f"{-gap:,}")
+        logger.info("  → Gap: {} tokens below budget", f"{-gap:,}")
 
     logger.info("=" * 72)
-
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    configure_root_logging()
     parser = argparse.ArgumentParser(description="Deduplicate pretraining corpus")
     parser.add_argument("--skip-token-audit", action="store_true")
     args = parser.parse_args()
@@ -332,10 +321,9 @@ def main():
     report_path = DEDUP_DIR / "dedup_report.json"
     with report_path.open("w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
-    logger.info("Report: %s", report_path)
+    logger.info("Report: {}", report_path)
 
     print_summary(report)
-
 
 if __name__ == "__main__":
     main()

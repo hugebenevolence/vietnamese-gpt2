@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-import logging
+from loguru import logger
 
 from src.config import (
     MODEL_DIR, MAX_NEW_TOKENS, TEMPERATURE,
     TOP_K, TOP_P, REPETITION_PENALTY,
 )
-from src.utils import configure_root_logging, generate_texts, load_gpt2
-
-logger = logging.getLogger(__name__)
+from src.utils import generate_texts, load_gpt2
 
 DEFAULT_GEN_CONFIG = {
     "max_new_tokens": MAX_NEW_TOKENS,
@@ -17,7 +15,6 @@ DEFAULT_GEN_CONFIG = {
     "repetition_penalty": REPETITION_PENALTY,
     "do_sample": True,
 }
-
 
 def interactive_mode(model, tokenizer, device):
     logger.info("Interactive mode. Type 'quit' to exit, 'config' to change params.")
@@ -39,20 +36,18 @@ def interactive_mode(model, tokenizer, device):
                 continue
 
             for text in generate_texts(model, tokenizer, device, prompt, **gen_config):
-                logger.info("\n%s\n", text)
+                logger.info("\n{}\n", text)
 
         except KeyboardInterrupt:
             break
         except Exception as e:
-            logger.exception("Generation error: %s", e)
-
+            logger.exception("Generation error: {}", e)
 
 def main():
-    configure_root_logging()
     model, tokenizer, device = load_gpt2(MODEL_DIR, eval_mode=True)
     n_params = sum(p.numel() for p in model.parameters()) / 1e6
     logger.info(
-        "Loaded model from %s (%s) — %.1fM params, vocab=%s",
+        "Loaded model from {} ({}) — {:.1f}M params, vocab={}",
         MODEL_DIR, device, n_params, f"{len(tokenizer):,}",
     )
 
@@ -65,15 +60,14 @@ def main():
     ]
 
     for i, prompt in enumerate(test_prompts, 1):
-        logger.info("[%d/%d] %s", i, len(test_prompts), prompt)
+        logger.info("[{}/{}] {}", i, len(test_prompts), prompt)
         for text in generate_texts(model, tokenizer, device, prompt, **DEFAULT_GEN_CONFIG):
-            logger.info("%s", text)
+            logger.info("{}", text)
         logger.info("")
 
     user_input = input("Enter interactive mode? [Y/n]: ").strip().lower()
     if user_input != "n":
         interactive_mode(model, tokenizer, device)
-
 
 if __name__ == "__main__":
     main()
