@@ -87,8 +87,7 @@ def main():
     for i, prompt in enumerate(test_prompts, 1):
         logger.info("[{}/{}] {}", i, len(test_prompts), prompt)
         for text in generate_texts(model, tokenizer, device, prompt, **DEFAULT_GEN_CONFIG):
-            logger.info("{}", text)
-        logger.info("")
+            logger.info("\n{}\n", text)
 
     user_input = input("Enter interactive mode? [Y/n]: ").strip().lower()
     if user_input != "n":

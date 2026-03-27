@@ -27,7 +27,7 @@ API_ENDPOINT = "https://vi.wikipedia.org/w/api.php"
 # Required by API etiquette: identify your bot/tool clearly
 USER_AGENT = (
     "vi-wiki-crawler/1.0 "
-    "(https://github.com/example/vi-wiki-crawler; contact@example.com) "
+    "(https://github.com/duongtruongbinh/vietnamese-gpt2) "
     "python-requests/2.x"
 )
 

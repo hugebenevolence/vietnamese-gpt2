@@ -95,16 +95,15 @@ def main():
     )
 
     prompts = [
-        "",
         "Trăng sáng trên đầu núi",
         "Mùa thu lá vàng rơi",
         "Hoa sen nở trắng hồ",
     ]
 
     for prompt in prompts:
-        logger.info("\n[Prompt: {}]", prompt or "(empty)")
+        logger.info("[Prompt: {}]", prompt or "(empty)")
         for poem in generate_poems(model, tokenizer, device, prompt, **DEFAULT_POEM_GEN_CONFIG):
-            logger.info("{}\n", poem)
+            logger.info("\n{}\n", poem)
 
     user_input = input("Enter interactive mode? [Y/n]: ").strip().lower()
     if user_input != "n":

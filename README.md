@@ -34,7 +34,7 @@ vietnamese-gpt2/
 │   └── train_2.sh
 ├── artifacts/                  # Tokenizer, checkpoints, logs, final models
 └── data/                       # Raw and processed datasets
-````
+```
 
 
 ## Training Overview
@@ -51,6 +51,7 @@ Continue pretraining the stage-1 model on a Vietnamese poem corpus to adapt the 
 
 * Python **3.11+**
 * CUDA-compatible GPU
+* `flash-attn` (optional; requires a compatible CUDA toolchain)
 * [uv](https://github.com/astral-sh/uv) for environment and package management
 
 ## Installation
@@ -59,6 +60,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/duongtruongbinh/vietnamese-gpt2
+cd vietnamese-gpt2
 uv sync
 uv pip install -e .
 ```

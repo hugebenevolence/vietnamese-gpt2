@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """Centralized configuration for the Vietnamese GPT-2 pretraining project."""
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-TOKENIZER_DIR = "./artifacts/tokenizer"
-CHECKPOINT_DIR = "./artifacts/checkpoints/scratch_init"
-MODEL_DIR = "./artifacts/checkpoints/scratch_init/final"
-
 # ── Dataset ──────────────────────────────────────────────────────────────────
 RAW_DATASETS = [
     "data/train/bkai_train.parquet",
@@ -31,6 +26,7 @@ BASE_MODEL = "gpt2"
 MAX_LENGTH = 1024
 
 # ── Training hyperparameters ─────────────────────────────────────────────────
+SEED = 42
 TOKEN_BUDGET = 2_480_000_000
 EVAL_SPLIT_RATIO = 0.01
 PREPROCESSING_NUM_WORKERS = 30
@@ -43,7 +39,13 @@ WARMUP_RATIO = 0.1
 BF16 = True
 GRADIENT_CHECKPOINTING = True
 DATALOADER_NUM_WORKERS = 10
-WANDB_RUN_NAME = "gpt2-small-vietnamese-rand-init"
+WANDB_RUN_NAME_STAGE_1 = "rand-init"
+WANDB_RUN_NAME_STAGE_2 = "continued-pretrain-poem"
+
+# ── Paths ────────────────────────────────────────────────────────────────────
+TOKENIZER_DIR = "./artifacts/tokenizer"
+CHECKPOINT_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_1}"
+MODEL_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_1}/final"
 
 # ── Inference defaults ───────────────────────────────────────────────────────
 MAX_NEW_TOKENS = 200
@@ -55,8 +57,8 @@ REPETITION_PENALTY = 1.2
 # ── Stage 2 continued pretraining (poem corpus) ─────────────────────────────
 POEM_DATA_PATH = "data/sft/poem_stanzas.jsonl"
 POEM_RAW_CSV = "data/raws/poem_dataset.csv"
-POEM_CHECKPOINT_DIR = "./artifacts/checkpoints/sft_poem"
-POEM_MODEL_DIR = "./artifacts/checkpoints/sft_poem/final"
+POEM_CHECKPOINT_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_2}"
+POEM_MODEL_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_2}/final"
 POEM_PREFIX = "thơ:\n"
 POEM_LINES_PER_STANZA = 4
 POEM_WORDS_PER_LINE = 5

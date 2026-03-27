@@ -4,25 +4,28 @@
 import math
 import unicodedata
 from pathlib import Path
-
+import wandb
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast, TrainerCallback
 
+
+def perplexity(loss: float) -> float:
+    try:
+        return math.exp(loss)
+    except OverflowError:
+        return float("inf")
+
 class PerplexityCallback(TrainerCallback):
-    """Callback to calculate and log perplexity mathematically from cross-entropy loss."""
+    """Add train/eval perplexity into Trainer logs."""
     def on_log(self, args, state, control, logs=None, **kwargs):
-        if logs is not None:
-            if "eval_loss" in logs: # Calculate eval perplexity
-                try:
-                    logs["eval_perplexity"] = math.exp(logs["eval_loss"])
-                except OverflowError:
-                    logs["eval_perplexity"] = float("inf")
-            
-            if "loss" in logs: # Calculate train perplexity
-                try:
-                    logs["train_perplexity"] = math.exp(logs["loss"])
-                except OverflowError: # Handle overflow
-                    logs["train_perplexity"] = float("inf")
+        if not logs:
+            return
+
+        if "loss" in logs:
+            logs["train_perplexity"] = perplexity(logs["loss"])
+
+        if "eval_loss" in logs:
+            logs["eval_perplexity"] = perplexity(logs["eval_loss"])
 
 def normalize_text(text: str) -> str:
     """Apply Unicode NFC normalization, returning empty string for None."""

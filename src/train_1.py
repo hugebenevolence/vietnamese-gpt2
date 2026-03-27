@@ -5,6 +5,7 @@ from itertools import chain
 import pandas as pd
 
 import torch
+import torch.distributed as dist
 from datasets import load_dataset, concatenate_datasets
 from transformers import (
     GPT2LMHeadModel,
@@ -24,16 +25,17 @@ from src.config import (
     PER_DEVICE_TRAIN_BATCH_SIZE, PER_DEVICE_EVAL_BATCH_SIZE,
     GRADIENT_ACCUMULATION_STEPS, WARMUP_RATIO, BF16,
     GRADIENT_CHECKPOINTING, DATALOADER_NUM_WORKERS,
-    WANDB_RUN_NAME,
+    WANDB_RUN_NAME_STAGE_1,
+    SEED,
 )
-from src.utils import normalize_text, PerplexityCallback
+from src.utils import normalize_text, PerplexityCallback, perplexity
 
 def load_and_prepare_dataset(tokenizer):
     all_datasets = []
     for src in DATASETS:
         ds = load_dataset("parquet", data_files=src["path"], split="train")
         ds = ds.select_columns(["text"])
-        ds = ds.shuffle(seed=42)
+        ds = ds.shuffle(seed=SEED)
 
         weight = src["weight"]
         if weight > 1:
@@ -42,8 +44,9 @@ def load_and_prepare_dataset(tokenizer):
         logger.info("  {}: {} samples (weight={})", src["path"], f"{len(ds):,}", weight)
         all_datasets.append(ds)
 
-    dataset = concatenate_datasets(all_datasets).shuffle(seed=42)
+    dataset = concatenate_datasets(all_datasets).shuffle(seed=SEED)
     eos_token_id = tokenizer.eos_token_id
+    raw_split = dataset.train_test_split(test_size=EVAL_SPLIT_RATIO, seed=SEED)
 
     def tokenize_function(examples):
         texts = [normalize_text(t) for t in examples["text"]]
@@ -64,35 +67,47 @@ def load_and_prepare_dataset(tokenizer):
         result["labels"] = [block[:] for block in result["input_ids"]]
         return result
 
-    tokenized = dataset.map(
+    tokenized_train = raw_split["train"].map(
         tokenize_function,
         batched=True,
         num_proc=PREPROCESSING_NUM_WORKERS,
-        remove_columns=dataset.column_names,
-        desc="Tokenizing",
+        remove_columns=raw_split["train"].column_names,
+        desc="Tokenizing train",
     )
 
-    grouped = tokenized.map(
+    tokenized_eval = raw_split["test"].map(
+        tokenize_function,
+        batched=True,
+        num_proc=PREPROCESSING_NUM_WORKERS,
+        remove_columns=raw_split["test"].column_names,
+        desc="Tokenizing eval",
+    )
+
+    grouped_train = tokenized_train.map(
         group_texts,
         batched=True,
         num_proc=PREPROCESSING_NUM_WORKERS,
-        desc="Grouping texts",
+        desc="Grouping train texts",
     )
 
-    split = grouped.train_test_split(test_size=EVAL_SPLIT_RATIO, seed=42)
+    grouped_eval = tokenized_eval.map(
+        group_texts,
+        batched=True,
+        num_proc=PREPROCESSING_NUM_WORKERS,
+        desc="Grouping eval texts",
+    )
 
-    total_tokens = len(grouped) * MAX_LENGTH
+    total_tokens = (len(grouped_train) + len(grouped_eval)) * MAX_LENGTH
     logger.info(
         "Dataset: {} train / {} eval blocks ({:.2f}B tokens)",
-        f"{len(split['train']):,}",
-        f"{len(split['test']):,}",
+        f"{len(grouped_train):,}",
+        f"{len(grouped_eval):,}",
         total_tokens / 1e9,
     )
 
-    return split
+    return {"train": grouped_train, "test": grouped_eval}
 
 def main():
-
     if torch.cuda.is_available():
         mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
         logger.info("GPU: {} ({:.1f} GB)", torch.cuda.get_device_name(0), mem_gb)
@@ -111,8 +126,14 @@ def main():
     # config.scale_attn_by_inverse_layer_idx = True
     # config.reorder_and_upcast_attn = True
     model = GPT2LMHeadModel(config)
+    model.tie_weights()
     n_params = sum(p.numel() for p in model.parameters())
-    logger.info("Model: random init, {:.1f}M params, flash_attention_2, bf16", n_params / 1e6)
+    logger.info(
+        "Model: random init, {:.1f}M params, attn_impl={}, bf16={}",
+        n_params / 1e6,
+        config.attn_implementation,
+        BF16 and torch.cuda.is_available(),
+    )
 
     dataset = load_and_prepare_dataset(tokenizer)
 
@@ -133,7 +154,7 @@ def main():
         weight_decay=WEIGHT_DECAY,
         warmup_ratio=WARMUP_RATIO,
         lr_scheduler_type="cosine",
-        bf16=BF16,
+        bf16=BF16 and torch.cuda.is_available(),
         eval_strategy="steps", save_strategy="steps",
         eval_steps=500, save_steps=500,
         save_total_limit=3, 
@@ -142,9 +163,9 @@ def main():
         greater_is_better=False,
         logging_steps=100,
         report_to=["wandb"],
-        run_name=WANDB_RUN_NAME,
+        run_name=WANDB_RUN_NAME_STAGE_1,
         dataloader_num_workers=DATALOADER_NUM_WORKERS,
-        seed=42, data_seed=42,
+        seed=SEED, data_seed=SEED,
     )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -182,7 +203,7 @@ def main():
 
     result = trainer.evaluate()
     loss = result["eval_loss"]
-    ppl = torch.exp(torch.tensor(loss)).item()
+    ppl = perplexity(loss)
     logger.info("Done. Eval loss={:.4f}, perplexity={:.2f}", loss, ppl)
     logger.info("Model saved to: {}", final_dir)
     
@@ -190,4 +211,8 @@ def main():
     df.to_csv(os.path.join(CHECKPOINT_DIR, "log_history.csv"), index=False)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        if dist.is_available() and dist.is_initialized():
+            dist.destroy_process_group()
