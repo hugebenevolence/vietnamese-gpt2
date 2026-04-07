@@ -15,7 +15,7 @@ from curl_cffi import requests
 from tqdm import tqdm
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_DATA_RAW = REPO_ROOT / "data" / "raws"
+_DATA_RAW = REPO_ROOT / "data" / "stage_2" / "raw"
 
 RETRY_MAX = 3
 RETRY_BASE_DELAY = 5.0

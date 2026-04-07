@@ -14,10 +14,11 @@ artifacts/logs/
 .env
 
 # Data
+data/stage_1/
+data/stage_2/
 data/raws/
 data/train/
-data/sft/*.csv
-data/sft/*.jsonl
+data/sft/
 
 # Wandb
 wandb/

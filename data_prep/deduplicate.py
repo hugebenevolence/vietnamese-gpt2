@@ -25,7 +25,7 @@ from transformers import GPT2TokenizerFast
 from src import config as cfg
 from src.utils import format_size, normalize_text
 
-DEDUP_DIR = Path(cfg.DEDUP_DIR)
+DEDUP_DIR = Path(cfg.STAGE_1_DEDUP_DIR)
 
 # Paragraph dedup applies to these sources only (matched by filename stem).
 PARA_STEMS = {"bkai_train", "vi_wiki_articles_clean"}

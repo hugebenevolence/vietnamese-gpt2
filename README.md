@@ -33,9 +33,20 @@ vietnamese-gpt2/
 │   ├── train_1.sh
 │   └── train_2.sh
 ├── artifacts/                  # Tokenizer, checkpoints, logs, final models
-└── data/                       # Raw and processed datasets
+└── data/                       # Stage-organized datasets
 ```
 
+### Data layout
+
+```text
+data/
+├── stage_1/
+│   ├── raw/                    # Stage-1 raw inputs (JSONL/Parquet)
+│   └── dedup/                  # Stage-1 deduplicated parquets + report
+└── stage_2/
+    ├── raw/                    # Poem metadata CSV + processed jsonl for training
+    └── dedup/                  # Stage-2 deduplicated poem parquet
+```
 
 ## Training Overview
 
@@ -102,6 +113,7 @@ bash scripts/train_1.sh
 uv run python data_prep/poem/crawl_poem.py
 uv run python data_prep/poem/scrape_poem_content.py
 uv run python data_prep/poem/prepare_poem_data.py
+uv run python data_prep/deduplicate_poem.py
 ```
 
 ### 6. Run stage 2 continued pretraining

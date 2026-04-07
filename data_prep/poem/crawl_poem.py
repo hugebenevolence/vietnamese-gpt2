@@ -38,7 +38,7 @@ RETRY_MAX = 3
 RETRY_BASE_DELAY = 5.0
 SLEEP_MIN = 2.0
 SLEEP_MAX = 4.0
-OUTPUT_DIR = REPO_ROOT / "data" / "raws"
+OUTPUT_DIR = REPO_ROOT / "data" / "stage_2" / "raw"
 
 def init_driver() -> webdriver.Chrome:
     chrome_options = webdriver.ChromeOptions()

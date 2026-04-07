@@ -311,8 +311,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/raws"),
-        help="Directory to save output JSONL and checkpoint (default: data/raws from cwd)",
+        default=Path("data/stage_1/raw"),
+        help="Directory to save output JSONL and checkpoint (default: data/stage_1/raw from cwd)",
     )
     parser.add_argument(
         "--limit",

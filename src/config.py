@@ -2,18 +2,27 @@
 """Centralized configuration for the Vietnamese GPT-2 pretraining project."""
 
 # ── Dataset ──────────────────────────────────────────────────────────────────
-RAW_DATASETS = [
-    "data/train/bkai_train.parquet",
-    "data/train/vi_wiki_articles_clean.parquet",
-]
+STAGE_1_DIR = "data/stage_1"
+STAGE_2_DIR = "data/stage_2"
 
-DEDUP_DIR = "data/train/deduped"
+# Stage 1 (base pretraining): raw corpora and deduplicated corpora
+STAGE_1_RAW_DIR = f"{STAGE_1_DIR}/raw"
+STAGE_1_DEDUP_DIR = f"{STAGE_1_DIR}/dedup"
+
+# Stage 2 (continued pretraining): poem corpus (raw/processed) + dedup outputs
+STAGE_2_RAW_DIR = f"{STAGE_2_DIR}/raw"
+STAGE_2_DEDUP_DIR = f"{STAGE_2_DIR}/dedup"
+
+RAW_DATASETS = [
+    f"{STAGE_1_RAW_DIR}/bkai_train.parquet",
+    f"{STAGE_1_RAW_DIR}/vi_wiki_articles_clean.parquet",
+]
 
 # Deduped sources for training. weight = how many times the source is repeated
 # in the training mixture (the deduped parquets on disk stay unique).
 DATASETS = [
-    {"path": "data/train/deduped/bkai_train.parquet", "weight": 1},
-    {"path": "data/train/deduped/vi_wiki_articles_clean.parquet", "weight": 3},
+    {"path": f"{STAGE_1_DEDUP_DIR}/bkai_train.parquet", "weight": 1},
+    {"path": f"{STAGE_1_DEDUP_DIR}/vi_wiki_articles_clean.parquet", "weight": 3},
 ]
 
 # ── Tokenizer training ──────────────────────────────────────────────────────
@@ -32,9 +41,9 @@ EVAL_SPLIT_RATIO = 0.01
 PREPROCESSING_NUM_WORKERS = 30
 LEARNING_RATE = 5e-4
 WEIGHT_DECAY = 0.01
-PER_DEVICE_TRAIN_BATCH_SIZE = 2
-PER_DEVICE_EVAL_BATCH_SIZE = 2
-GRADIENT_ACCUMULATION_STEPS = 64
+PER_DEVICE_TRAIN_BATCH_SIZE = 8
+PER_DEVICE_EVAL_BATCH_SIZE = 8
+GRADIENT_ACCUMULATION_STEPS = 16
 WARMUP_RATIO = 0.1
 BF16 = True
 GRADIENT_CHECKPOINTING = True
@@ -55,14 +64,14 @@ TOP_P = 0.95
 REPETITION_PENALTY = 1.2
 
 # ── Stage 2 continued pretraining (poem corpus) ─────────────────────────────
-POEM_DATA_PATH = "data/sft/poem_stanzas.jsonl"
-POEM_RAW_CSV = "data/raws/poem_dataset.csv"
+POEM_DATA_PATH = f"{STAGE_2_RAW_DIR}/poem_stanzas.jsonl"
+POEM_RAW_CSV = f"{STAGE_2_RAW_DIR}/poem_dataset.csv"
 POEM_CHECKPOINT_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_2}"
 POEM_MODEL_DIR = f"./artifacts/checkpoints/{WANDB_RUN_NAME_STAGE_2}/final"
 POEM_PREFIX = "thơ:\n"
 POEM_LINES_PER_STANZA = 4
 POEM_WORDS_PER_LINE = 5
-POEM_EPOCHS = 30
+POEM_EPOCHS = 20
 POEM_BATCH_SIZE = 32
 POEM_LEARNING_RATE = 5e-5
 POEM_WEIGHT_DECAY = 0.1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download news corpus (BKAI) and save as Parquet under data/train/."""
+"""Download news corpus (BKAI) and save as Parquet for stage 1 pretraining."""
 
 from loguru import logger
 import os
@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 from datasets import load_dataset
 from src.utils import format_size
 
-OUTPUT_DIR = REPO_ROOT / "data" / "train"
+OUTPUT_DIR = REPO_ROOT / "data" / "stage_1" / "raw"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def download_and_save_dataset(

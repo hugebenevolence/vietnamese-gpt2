@@ -22,7 +22,7 @@ from datasets import Dataset
 
 from src.utils import format_size
 
-_DATA_RAW = REPO_ROOT / "data" / "raws"
+_DATA_RAW = REPO_ROOT / "data" / "stage_1" / "raw"
 
 # Patterns applied in order
 _PATTERNS = [
@@ -384,11 +384,11 @@ if __name__ == "__main__":
     # Step 1: Clean wikitext -> JSONL
     process(args.input, args.output)
 
-    # Step 2: Convert to Parquet -> data/train/
+    # Step 2: Convert to Parquet -> stage 1 raw
     logger.info("")
     logger.info("=" * 60)
-    train_dir = REPO_ROOT / "data" / "train"
-    train_dir.mkdir(parents=True, exist_ok=True)
-    output_parquet = train_dir / args.output.with_suffix(".parquet").name
+    stage1_raw_dir = REPO_ROOT / "data" / "stage_1" / "raw"
+    stage1_raw_dir.mkdir(parents=True, exist_ok=True)
+    output_parquet = stage1_raw_dir / args.output.with_suffix(".parquet").name
     convert_jsonl_to_parquet(args.output, output_parquet)
     logger.info("=" * 60)
