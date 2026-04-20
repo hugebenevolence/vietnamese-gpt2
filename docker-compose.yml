@@ -1,0 +1,15 @@
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vietnamese-gpt2:latest
+    container_name: vietnamese-gpt2
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./data:/app/data
+    environment:
+      - WANDB_MODE=offline
