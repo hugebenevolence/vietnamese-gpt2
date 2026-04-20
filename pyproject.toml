@@ -24,6 +24,8 @@ dependencies = [
     "transformers==4.55.4",
     "wandb==0.24.0",
     "webdriver-manager==4.0.2",
+    "fastapi==0.116.1",
+    "uvicorn[standard]==0.35.0",
 ]
 
 [tool.setuptools.packages.find]

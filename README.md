@@ -79,16 +79,32 @@ uv pip install -e .
 Run all commands from the repository root.
 
 
-## Run with Docker
+## Run with Docker (Trainer + REST API + Next.js UI)
 
-Build and enter a containerized environment:
+### 1) Build all services
 
 ```bash
 docker compose build
+```
+
+### 2) Start chat application stack (backend + UI)
+
+```bash
+docker compose up backend ui
+```
+
+- Next.js UI: `http://localhost:3000`
+- FastAPI backend: `http://localhost:8000`
+- Health endpoint: `http://localhost:8000/health`
+- UI gọi API qua `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` để browser truy cập đúng host.
+
+### 3) Enter trainer container (optional for model training)
+
+```bash
 docker compose run --rm trainer
 ```
 
-Inside the container, run the same pipeline commands with `uv run`, for example:
+Inside trainer container, run pipeline commands with `uv run`, for example:
 
 ```bash
 uv run python src/train_tokenizer.py
@@ -96,9 +112,20 @@ bash scripts/train_1.sh
 ```
 
 > Notes:
-> - `./data` and `./artifacts` are mounted into the container so outputs persist on your host machine.
+> - `./data` and `./artifacts` are mounted into containers so outputs persist on host machine.
+> - Backend will use `MODEL_PATH=/app/artifacts/model_stage2` by default (configured in `docker-compose.yml`).
+> - If model files are not available yet, backend returns a mock response so UI can still be tested.
 > - For GPU training, run Docker with NVIDIA Container Toolkit support (e.g. `docker compose run --rm --gpus all trainer`).
 
+## Chat App Architecture
+
+```text
+ui (Next.js)  --->  backend (FastAPI)  --->  local HuggingFace model (artifacts/model_stage2)
+```
+
+- `backend/app/main.py` exposes `POST /api/chat` and `GET /health`.
+- `ui/app/page.js` provides a simple chat interface and calls backend through `NEXT_PUBLIC_API_BASE_URL`.
+- If model loading fails, backend automatically falls back to mock replies for development.
 
 ## Pipeline
 

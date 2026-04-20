@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: vietnamese-gpt2:latest
-    container_name: vietnamese-gpt2
+    container_name: vietnamese-gpt2-trainer
     working_dir: /app
     tty: true
     stdin_open: true
@@ -13,3 +13,28 @@ services:
       - ./data:/app/data
     environment:
       - WANDB_MODE=offline
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: vietnamese-gpt2-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+    environment:
+      - MODEL_PATH=/app/artifacts/model_stage2
+      - CORS_ORIGINS=http://localhost:3000
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    container_name: vietnamese-gpt2-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
