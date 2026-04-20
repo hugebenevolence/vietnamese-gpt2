@@ -79,6 +79,27 @@ uv pip install -e .
 Run all commands from the repository root.
 
 
+## Run with Docker
+
+Build and enter a containerized environment:
+
+```bash
+docker compose build
+docker compose run --rm trainer
+```
+
+Inside the container, run the same pipeline commands with `uv run`, for example:
+
+```bash
+uv run python src/train_tokenizer.py
+bash scripts/train_1.sh
+```
+
+> Notes:
+> - `./data` and `./artifacts` are mounted into the container so outputs persist on your host machine.
+> - For GPU training, run Docker with NVIDIA Container Toolkit support (e.g. `docker compose run --rm --gpus all trainer`).
+
+
 ## Pipeline
 
 ### 1. Prepare raw corpora

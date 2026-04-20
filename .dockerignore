@@ -1,0 +1,15 @@
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+.env
+.env.*
+artifacts/
+data/
+wandb/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
